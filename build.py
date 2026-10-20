@@ -1004,6 +1004,7 @@ def build(preview=False):
     (DIST / "robots.txt").write_text(ROBOTS, encoding="utf-8")
     (DIST / ".htaccess").write_text(htaccess(), encoding="utf-8")
     (DIST / "_redirects").write_text(redirects(), encoding="utf-8")
+    (DIST / ".assetsignore").write_text(".htaccess\n", encoding="utf-8")   # Cloudflare ho nepotřebuje
 
     if preview:
         router = (SRC / "preview.js").read_text(encoding="utf-8")

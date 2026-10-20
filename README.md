@@ -1,16 +1,21 @@
 # Web Cafe Moya
 
 Zdroj webu www.cafemoya.cz. Stránky se generují skriptem `build.py` a po každé změně v tomto
-repozitáři je Cloudflare Pages sám sestaví a zveřejní.
+repozitáři je Cloudflare sám sestaví a zveřejní.
 
-## Nastavení projektu v Cloudflare Pages
+## Nastavení projektu v Cloudflare (Workers)
+
+V projektu otevřete Settings → Build a nastavte:
 
 | Položka | Hodnota |
 |---|---|
-| Framework preset | None |
 | Build command | `python3 build.py` |
-| Build output directory | `dist` |
+| Deploy command | `npx wrangler deploy` |
 | Proměnná prostředí (volitelně) | `WEB3FORMS_KEY` = klíč z web3forms.com |
+
+Soubor `wrangler.jsonc` říká Cloudflaru, že hotový web je ve složce `dist`. Jméno v něm (`cafemoya`)
+musí odpovídat názvu projektu v Cloudflare. Soubor index.html a ostatní stránky v repozitáři nehledejte,
+vznikají až při sestavení.
 
 ## Co kde je
 

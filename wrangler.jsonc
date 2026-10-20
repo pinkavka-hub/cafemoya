@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers: zveřejní hotový web ze složky dist.
+  // Složku vytvoří příkaz python3 build.py (v Cloudflare jako Build command).
+  // Jméno musí odpovídat názvu projektu v Cloudflare.
+  "name": "cafemoya",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}
