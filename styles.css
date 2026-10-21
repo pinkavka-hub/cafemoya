@@ -177,6 +177,8 @@ p, ul, ol, dl, figure { margin: 0; }
 .lunch-text { flex: 1 1 340px; min-width: 0; }
 .lunch-text > * + * { margin-top: 24px; }
 .lunch-menu { flex: 2 1 560px; min-width: 0; }
+.weekend-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 50% 70%; }
+.weekend-photo[hidden] { display: none; }
 .menu-day-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--price); }
 .menu-day-head h3 { font-size: clamp(22px, 2.2vw, 26px); color: var(--price); }
 .menu-day-head p { font-size: 15px; color: var(--ink-2); }
@@ -274,9 +276,11 @@ p, ul, ol, dl, figure { margin: 0; }
 .hours { max-width: 440px; }
 .hours div { display: flex; justify-content: space-between; gap: 24px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 .hours dd { margin: 0; font-weight: 800; text-align: right; }
-.map { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 420px; padding: 32px; background: var(--ph); color: var(--ph-ink); text-align: center; }
-.map svg { width: 40px; height: 40px; }
-.map-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; }
+.map { display: flex; flex-direction: column; gap: 12px; }
+.map iframe { display: block; flex: 1 1 auto; width: 100%; min-height: 420px; border: 0; background: var(--ph); filter: saturate(.45) contrast(1.05); }
+.map-preview { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 420px; padding: 32px; background: var(--ph); color: var(--ph-ink); text-align: center; }
+.map-preview svg { width: 40px; height: 40px; }
+.map-links { display: flex; flex-wrap: wrap; gap: 4px 24px; }
 .map-links a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; }
 
 /* Patička */

@@ -1,0 +1,6 @@
+dist/
+preview.html
+balik/
+*.zip
+__pycache__/
+.DS_Store
