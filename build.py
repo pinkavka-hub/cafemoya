@@ -179,14 +179,9 @@ def hours(extra=()):
     return f'<dl class="hours">{rows}</dl>'
 
 
-# Mapa OpenStreetMap: nesleduje návštěvníky, a proto nepotřebuje souhlas s cookies
-OSM_EMBED = ("https://www.openstreetmap.org/export/embed.html"
-             "?bbox=16.8789%2C49.2017%2C16.8859%2C49.2050&amp;layer=mapnik&amp;marker=49.203344%2C16.882403")
-MAP = ('<figure class="map">'
-       f'<iframe src="{OSM_EMBED}" title="Mapa: Cafe Moya, Sušilovo náměstí 61/39, Rousínov" '
-       'loading="lazy" referrerpolicy="no-referrer"></iframe>'
-       f'<figcaption class="map-links"><a href="{MAPY}">Otevřít v Mapy.com</a>'
-       f'<a href="{GMAPS}">Otevřít v Google Maps</a></figcaption></figure>')
+MAP = (f'<div class="map">{PIN}<p><b>Sušilovo náměstí 61/39, Rousínov</b></p>'
+       '<p>Kavárna je přímo na náměstí v centru Rousínova.</p>'
+       f'<p class="map-links"><a href="{MAPY}">Otevřít v Mapy.com</a><a href="{GMAPS}">Otevřít v Google Maps</a></p></div>')
 
 COLS = ('<div class="cols">'
         '<div class="col"><h3>Káva</h3><p>Espresso, doppio, cappuccino a kávové speciality</p></div>'
@@ -728,7 +723,7 @@ PRIVACY_PAGE = page_hero(
 <h2 class="h3">Jaké údaje zpracováváme a proč</h2>
 <p>Když nám přes web pošlete poptávku dortu, objednávku mísy nebo rezervaci stolu, zpracujeme vaše jméno, telefon, e-mail a údaje, které do formuláře napíšete. Použijeme je jen k vyřízení vaší žádosti a uchováme je jen po dobu nezbytně nutnou.</p>
 <h2 class="h3">Cookies</h2>
-<p>Web nepoužívá analytické ani reklamní cookies. Mapa na stránkách pochází z OpenStreetMap; při jejím zobrazení se váš prohlížeč připojí k jejich serverům, které návštěvníky nesledují.</p>
+<p>Web nepoužívá analytické ani reklamní cookies.</p>
 <h2 class="h3">Vaše práva</h2>
 <p>Máte právo na přístup ke svým údajům, na jejich opravu nebo výmaz a právo vznést námitku. Stačí napsat na <a href="mailto:{EMAIL}">{EMAIL}</a>. Stížnost můžete podat u Úřadu pro ochranu osobních údajů (<a href="https://www.uoou.cz">www.uoou.cz</a>).</p>
 </div>
@@ -915,12 +910,6 @@ def inline_images(text):
     return re.sub(r'src="/assets/([^"]+\.(?:webp|jpg|png|svg))"', repl, text)
 
 
-def preview_map(text):
-    note = ('<div class="map-preview">' + PIN + '<p><b>Sušilovo náměstí 61/39, Rousínov</b></p>'
-            '<p>Tady bude mapa OpenStreetMap. V náhledu se nenačte, na webu ano.</p></div>')
-    return re.sub(r"<iframe[^>]*></iframe>", note, text)
-
-
 def preview_document(css, js, router):
     fonts = ("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700"
              "&family=Nunito+Sans:wght@400;600;700;800&display=swap").replace("&", "&amp;")
@@ -928,7 +917,7 @@ def preview_document(css, js, router):
     for p in PAGES:
         hidden = "" if p["path"] == "/" else " hidden"
         pages.append(f'<div class="page" data-route="{p["path"]}" data-title="{esc(p["title"])}"{hidden}>\n'
-                     f'{vlnka(rewrite_for_preview(preview_map(inline_images(p["body"]))))}\n</div>')
+                     f'{vlnka(rewrite_for_preview(inline_images(p["body"])))}\n</div>')
     return f'''<!doctype html>
 <html lang="cs" class="js">
 <head>
