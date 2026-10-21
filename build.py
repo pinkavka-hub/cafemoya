@@ -150,7 +150,25 @@ def vlnka(markup):
     return "".join(out)
 
 
-LOGO = '<span class="logo-ring"><span>Cafe</span><span>Moya</span></span>'
+LOGO = '<img src="/assets/logo-cafe-moya.svg" alt="" width="72" height="72">'
+FOOTER_LOGO = ('<img class="footer-logo" src="/assets/logo-cafe-moya.svg" alt="Cafe Moya" '
+               'width="84" height="84" loading="lazy">')
+
+
+def shot(name, caption, alt):
+    """Fotka do galerie na šířku 4:3 s popiskem pod ní."""
+    files = ", ".join(f"/assets/foto/{name}-{w}.webp {w}w" for w in (400, 800))
+    return (f'<figure class="shot"><img src="/assets/foto/{name}-800.webp" srcset="{files}" '
+            'sizes="(max-width: 860px) calc(100vw - 40px), 390px" width="800" height="600" '
+            f'alt="{alt}" loading="lazy" decoding="async"><figcaption>{caption}</figcaption></figure>')
+
+
+def photo(name, alt):
+    """Fotka na výšku ve třech velikostech (480, 720 a 960 px široká)."""
+    files = ", ".join(f"/assets/foto/{name}-{w}.webp {w}w" for w in (480, 720, 960))
+    return (f'<img class="photo" src="/assets/foto/{name}-960.webp" srcset="{files}" '
+            'sizes="(max-width: 960px) calc(100vw - 40px), 480px" width="960" height="1286" '
+            f'alt="{alt}" loading="lazy" decoding="async">')
 ADDRESS = '<address class="addr">Cafe Moya<br>Sušilovo náměstí 61/39<br>683 01 Rousínov</address>'
 HOURS_ROWS = [("Pondělí–pátek", "8:00–19:00"), ("Sobota a neděle", "9:00–19:00"),
               ("Polední menu", "Po–Pá 11:00–14:00")]
@@ -161,9 +179,14 @@ def hours(extra=()):
     return f'<dl class="hours">{rows}</dl>'
 
 
-MAP = (f'<div class="map">{PIN}<p><b>Sušilovo náměstí 61/39, Rousínov</b></p>'
-       '<p>Kavárna je přímo na náměstí v centru Rousínova.</p>'
-       f'<p class="map-links"><a href="{MAPY}">Otevřít v Mapy.com</a><a href="{GMAPS}">Otevřít v Google Maps</a></p></div>')
+# Mapa OpenStreetMap: nesleduje návštěvníky, a proto nepotřebuje souhlas s cookies
+OSM_EMBED = ("https://www.openstreetmap.org/export/embed.html"
+             "?bbox=16.8789%2C49.2017%2C16.8859%2C49.2050&amp;layer=mapnik&amp;marker=49.203344%2C16.882403")
+MAP = ('<figure class="map">'
+       f'<iframe src="{OSM_EMBED}" title="Mapa: Cafe Moya, Sušilovo náměstí 61/39, Rousínov" '
+       'loading="lazy" referrerpolicy="no-referrer"></iframe>'
+       f'<figcaption class="map-links"><a href="{MAPY}">Otevřít v Mapy.com</a>'
+       f'<a href="{GMAPS}">Otevřít v Google Maps</a></figcaption></figure>')
 
 COLS = ('<div class="cols">'
         '<div class="col"><h3>Káva</h3><p>Espresso, doppio, cappuccino a kávové speciality</p></div>'
@@ -350,7 +373,7 @@ def footer():
                 ("/rozvoz-obedu/", "Rozvoz obědů Vyškov a okolí"), ("/kontakt/", "Kontakt a otevírací doba")]
     links = "".join(f'<li><a href="{p}">{t}</a></li>' for p, t in services)
     return ('<footer class="site-footer"><div class="wrap"><div class="footer-grid">'
-            f'<div class="footer-brand">{LOGO}<p>Rodinná kavárna a cukrárna na Sušilově náměstí v Rousínově. '
+            f'<div class="footer-brand">{FOOTER_LOGO}<p>Rodinná kavárna a cukrárna na Sušilově náměstí v Rousínově. '
             'Catering na oslavy a obědy s rozvozem zdarma.</p></div>'
             f'<nav aria-label="Služby"><h2>Služby</h2><ul>{links}</ul></nav>'
             f'<div><h2>Kontakt</h2><p>Sušilovo náměstí 61/39<br>683 01 Rousínov<br>'
@@ -379,7 +402,7 @@ HOME = f'''<section class="hero sec--night">
 <div class="btns"><a class="btn btn-gold" href="/dorty-na-objednavku/">Dort na objednávku</a><a class="btn btn-line" href="/obedove-menu/">Polední menu</a></div>
 <p class="hero-note">Otevřeno Po–Pá 8–19 h, So–Ne 9–19 h</p>
 </div>
-<div class="hero-media"><div class="ring">{ph("zákusky z vitríny, shora")}</div></div>
+<div class="hero-media"><div class="ring"><img src="/assets/foto/uvod-kava-1000.webp" srcset="/assets/foto/uvod-kava-600.webp 600w, /assets/foto/uvod-kava-1000.webp 1000w" sizes="(max-width: 720px) 270px, 470px" width="1000" height="1000" alt="Cappuccino s latte art na dřevěném baru kavárny" fetchpriority="high"></div></div>
 </div>
 </section>
 <section class="sec sec--paper" aria-labelledby="home-poledne" data-lunch-section="weekday" data-lunch-end="{LUNCH_END}">
@@ -410,7 +433,7 @@ HOME = f'''<section class="hero sec--night">
 </section>
 <section class="sec sec--paper sec--tight" aria-labelledby="home-dorty">
 <div class="wrap split">
-{ph("dort na objednávku na stojanu, světlé pozadí")}
+{photo("dorty", "Čokoládový dort se zdobením a další zákusky na stole")}
 <div class="prose">
 <h2 id="home-dorty">Dorty a zákusky z naší cukrárny</h2>
 <p>Zákusky a dezerty vyrábíme sami. Na objednávku upečeme dort na narozeniny, výročí nebo firemní oslavu podle vašeho přání a počtu hostů.</p>
@@ -427,7 +450,7 @@ HOME = f'''<section class="hero sec--night">
 <p class="muted">Mísy od {kc(739)} za kilogram. Objednávejte nejméně jeden pracovní den předem.</p>
 <div class="btns"><a class="btn btn-ink" href="/catering/">Nabídka mís</a></div>
 </div>
-{ph("obložená mísa a chlebíčky, shora")}
+{photo("misy", "Tři obložené mísy se salámy, sýry a zeleninou")}
 </div>
 </section>
 <section class="sec sec--night" aria-labelledby="home-kavarna">
@@ -600,7 +623,7 @@ CATERING_PAGE = page_hero(
 <section class="sec sec--paper sec--tight" aria-labelledby="h-misy-foto">
 <div class="wrap">
 <h2 class="h3" id="h-misy-foto">Jak mísy vypadají</h2>
-<div class="gallery">{ph("salámová mísa")}{ph("sýrová mísa")}{ph("mix mísa")}</div>
+<div class="gallery">{shot("misa-salamova", "Salámová mísa", "Salámová mísa se šunkou, salámy a klobáskami")}{shot("misa-syrova", "Sýrová mísa", "Sýrová mísa s plísňovými sýry, mozzarellou a zeleninou")}{shot("misa-mix", "Mix mísa", "Mix mísa se šunkou, salámem, sýry a mozzarellou")}</div>
 </div>
 </section>
 <section class="sec sec--paper sec--tight" id="objednavka-misy" aria-labelledby="h-objednavka-misy">
@@ -705,7 +728,7 @@ PRIVACY_PAGE = page_hero(
 <h2 class="h3">Jaké údaje zpracováváme a proč</h2>
 <p>Když nám přes web pošlete poptávku dortu, objednávku mísy nebo rezervaci stolu, zpracujeme vaše jméno, telefon, e-mail a údaje, které do formuláře napíšete. Použijeme je jen k vyřízení vaší žádosti a uchováme je jen po dobu nezbytně nutnou.</p>
 <h2 class="h3">Cookies</h2>
-<p>Web nepoužívá analytické ani reklamní cookies.</p>
+<p>Web nepoužívá analytické ani reklamní cookies. Mapa na stránkách pochází z OpenStreetMap; při jejím zobrazení se váš prohlížeč připojí k jejich serverům, které návštěvníky nesledují.</p>
 <h2 class="h3">Vaše práva</h2>
 <p>Máte právo na přístup ke svým údajům, na jejich opravu nebo výmaz a právo vznést námitku. Stačí napsat na <a href="mailto:{EMAIL}">{EMAIL}</a>. Stížnost můžete podat u Úřadu pro ochranu osobních údajů (<a href="https://www.uoou.cz">www.uoou.cz</a>).</p>
 </div>
@@ -850,6 +873,7 @@ def document(p, ver):
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#000000">
+<link rel="icon" href="/assets/favicon-48.png" sizes="48x48" type="image/png">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
 <link rel="preload" href="/assets/fonts/comfortaa-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
@@ -879,6 +903,24 @@ def rewrite_for_preview(text):
     return re.sub(r'href="(/[^"]*)"', repl, text)
 
 
+def inline_images(text):
+    """Pro jednosouborový náhled: fotky z /assets vložit přímo do HTML."""
+    import base64
+    text = re.sub(r'\s(?:srcset|sizes)="[^"]*"', "", text)
+    def repl(m):
+        data = (SRC / "assets" / m.group(1)).read_bytes()
+        ext = m.group(1).rsplit(".", 1)[1]
+        mime = {"webp": "image/webp", "jpg": "image/jpeg", "png": "image/png", "svg": "image/svg+xml"}[ext]
+        return 'src="data:' + mime + ';base64,' + base64.b64encode(data).decode("ascii") + '"'
+    return re.sub(r'src="/assets/([^"]+\.(?:webp|jpg|png|svg))"', repl, text)
+
+
+def preview_map(text):
+    note = ('<div class="map-preview">' + PIN + '<p><b>Sušilovo náměstí 61/39, Rousínov</b></p>'
+            '<p>Tady bude mapa OpenStreetMap. V náhledu se nenačte, na webu ano.</p></div>')
+    return re.sub(r"<iframe[^>]*></iframe>", note, text)
+
+
 def preview_document(css, js, router):
     fonts = ("https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;700"
              "&family=Nunito+Sans:wght@400;600;700;800&display=swap").replace("&", "&amp;")
@@ -886,7 +928,7 @@ def preview_document(css, js, router):
     for p in PAGES:
         hidden = "" if p["path"] == "/" else " hidden"
         pages.append(f'<div class="page" data-route="{p["path"]}" data-title="{esc(p["title"])}"{hidden}>\n'
-                     f'{vlnka(rewrite_for_preview(p["body"]))}\n</div>')
+                     f'{vlnka(rewrite_for_preview(preview_map(inline_images(p["body"]))))}\n</div>')
     return f'''<!doctype html>
 <html lang="cs" class="js">
 <head>
@@ -904,11 +946,11 @@ def preview_document(css, js, router):
 </style>
 </head>
 <body>
-{vlnka(rewrite_for_preview(header(None)))}
+{vlnka(rewrite_for_preview(inline_images(header(None))))}
 <main id="obsah">
 {"".join(pages)}
 </main>
-{vlnka(rewrite_for_preview(footer()))}
+{vlnka(rewrite_for_preview(inline_images(footer())))}
 <script>window.MOYA_PREVIEW = true;</script>
 <script>
 {js}
