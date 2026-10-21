@@ -111,6 +111,7 @@ p, ul, ol, dl, figure { margin: 0; }
 .site-header { background: var(--night); color: var(--night-ink); }
 .header-in { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding-block: 20px; }
 .logo { display: inline-flex; color: inherit; text-decoration: none; }
+.logo img { width: 72px; height: 72px; }
 .logo-ring { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 72px; height: 72px; border: 2px solid currentColor; border-radius: 50%; font-family: var(--font-head); line-height: 1; }
 .logo-ring span:first-child { font-size: 13px; }
 .logo-ring span:last-child { font-size: 19px; font-weight: 700; }
@@ -122,7 +123,7 @@ p, ul, ol, dl, figure { margin: 0; }
 .nav-toggle { display: none; }
 
 @media (max-width: 1080px) {
-  .logo-ring { width: 60px; height: 60px; }
+  .logo-ring, .logo img { width: 60px; height: 60px; }
   .logo-ring span:first-child { font-size: 11px; }
   .logo-ring span:last-child { font-size: 16px; }
   .nav-toggle { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 20px; border: 2px solid var(--night-ink); border-radius: 999px; background: transparent; color: var(--night-ink); font: inherit; font-weight: 800; cursor: pointer; }
@@ -146,6 +147,7 @@ p, ul, ol, dl, figure { margin: 0; }
 .ring { position: relative; width: 100%; max-width: 520px; aspect-ratio: 1; }
 .ring::before { content: ""; position: absolute; inset: 0; border: 2px solid var(--gold); border-radius: 50%; }
 .ring .ph { position: absolute; inset: 5%; min-height: 0; border-radius: 50%; background: var(--night-ph); color: var(--night-2); }
+.ring img { position: absolute; inset: 5%; width: 90%; height: 90%; border-radius: 50%; object-fit: cover; }
 
 /* Hero podstránek */
 .page-hero { position: relative; overflow: hidden; background: var(--night); color: var(--night-ink); padding-block: clamp(28px, 4vw, 48px) clamp(56px, 7vw, 88px); }
@@ -168,12 +170,15 @@ p, ul, ol, dl, figure { margin: 0; }
 .split { display: flex; flex-wrap: wrap; align-items: center; gap: 40px 72px; }
 .split > * { flex: 1 1 420px; min-width: 0; }
 .split--rev { flex-wrap: wrap-reverse; }
+.split > .photo { flex: 1 1 380px; max-width: 480px; height: auto; margin-inline: auto; }
 
 /* Polední menu */
 .lunch { display: flex; flex-wrap: wrap; gap: 48px 80px; }
 .lunch-text { flex: 1 1 340px; min-width: 0; }
 .lunch-text > * + * { margin-top: 24px; }
 .lunch-menu { flex: 2 1 560px; min-width: 0; }
+.weekend-photo { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; object-position: 50% 70%; }
+.weekend-photo[hidden] { display: none; }
 .menu-day-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 24px; padding-bottom: 14px; border-bottom: 2px solid var(--price); }
 .menu-day-head h3 { font-size: clamp(22px, 2.2vw, 26px); color: var(--price); }
 .menu-day-head p { font-size: 15px; color: var(--ink-2); }
@@ -244,8 +249,10 @@ p, ul, ol, dl, figure { margin: 0; }
 .note-box { margin-top: 32px; padding: 20px 24px; background: var(--ph); font-weight: 600; }
 
 /* Galerie */
-.gallery { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 28px; }
-.gallery > .ph { flex: 1 1 260px; min-height: 260px; }
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px 16px; margin-top: 28px; }
+.gallery > .ph { min-height: 260px; }
+.shot img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+.shot figcaption { margin-top: 10px; font-family: var(--font-head); font-size: 18px; font-weight: 700; }
 
 /* Formuláře */
 .form-wrap { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 40px 72px; }
@@ -269,9 +276,11 @@ p, ul, ol, dl, figure { margin: 0; }
 .hours { max-width: 440px; }
 .hours div { display: flex; justify-content: space-between; gap: 24px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 .hours dd { margin: 0; font-weight: 800; text-align: right; }
-.map { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 420px; padding: 32px; background: var(--ph); color: var(--ph-ink); text-align: center; }
-.map svg { width: 40px; height: 40px; }
-.map-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 24px; }
+.map { display: flex; flex-direction: column; gap: 12px; }
+.map iframe { display: block; flex: 1 1 auto; width: 100%; min-height: 420px; border: 0; background: var(--ph); filter: saturate(.45) contrast(1.05); }
+.map-preview { display: flex; flex: 1 1 auto; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 420px; padding: 32px; background: var(--ph); color: var(--ph-ink); text-align: center; }
+.map-preview svg { width: 40px; height: 40px; }
+.map-links { display: flex; flex-wrap: wrap; gap: 4px 24px; }
 .map-links a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 800; }
 
 /* Patička */
@@ -279,6 +288,7 @@ p, ul, ol, dl, figure { margin: 0; }
 .footer-grid { display: flex; flex-wrap: wrap; gap: 40px 56px; margin-bottom: 48px; }
 .footer-grid > * { flex: 1 1 200px; min-width: 0; }
 .footer-grid > .footer-brand { flex: 2 1 280px; }
+.footer-logo { width: 84px; height: 84px; }
 .footer-brand p { margin-top: 20px; max-width: 24em; }
 .site-footer h2 { margin-bottom: 14px; font-size: 17px; color: var(--gold); }
 .site-footer h2 + p + h2 { margin-top: 24px; }
