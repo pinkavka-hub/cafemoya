@@ -30,6 +30,8 @@ TEL, TEL_H = "+420605226781", "605 226 781"
 TEL2, TEL2_H = "+420702360519", "702 360 519"
 EMAIL = "info@cafemoya.cz"
 FACEBOOK = "https://www.facebook.com/cafemoyarousinov/"
+FIRMY = "https://www.firmy.cz/detail/13414793-cafe-moya-rousinov.html"
+INSTAGRAM = "https://www.instagram.com/cafe.moya/"
 MAPY = "https://mapy.com/cs/zakladni?source=firm&id=13414793&x=16.882403&y=49.203344&z=17"
 GMAPS = ("https://www.google.com/maps/search/?api=1&query="
          + quote("Cafe Moya, Sušilovo náměstí 61, Rousínov"))
@@ -155,11 +157,12 @@ FOOTER_LOGO = ('<img class="footer-logo" src="/assets/logo-cafe-moya.svg" alt="C
                'width="84" height="84" loading="lazy">')
 
 
-def shot(name, caption, alt):
-    """Fotka do galerie na šířku 4:3 s popiskem pod ní."""
+def shot(name, caption, alt, tall=False):
+    """Fotka do galerie s popiskem: na šířku 4:3, nebo s tall=True na výšku 3:4."""
     files = ", ".join(f"/assets/foto/{name}-{w}.webp {w}w" for w in (400, 800))
-    return (f'<figure class="shot"><img src="/assets/foto/{name}-800.webp" srcset="{files}" '
-            'sizes="(max-width: 860px) calc(100vw - 40px), 390px" width="800" height="600" '
+    height, cls = (1067, "shot shot--tall") if tall else (600, "shot")
+    return (f'<figure class="{cls}"><img src="/assets/foto/{name}-800.webp" srcset="{files}" '
+            f'sizes="(max-width: 860px) calc(100vw - 40px), 390px" width="800" height="{height}" '
             f'alt="{alt}" loading="lazy" decoding="async"><figcaption>{caption}</figcaption></figure>')
 
 
@@ -169,7 +172,17 @@ def photo(name, alt):
     return (f'<img class="photo" src="/assets/foto/{name}-960.webp" srcset="{files}" '
             'sizes="(max-width: 960px) calc(100vw - 40px), 480px" width="960" height="1286" '
             f'alt="{alt}" loading="lazy" decoding="async">')
-ADDRESS = '<address class="addr">Cafe Moya<br>Sušilovo náměstí 61/39<br>683 01 Rousínov</address>'
+
+
+def wide(name, alt):
+    """Fotka na šířku 4:3 přes celý sloupec dvousloupcového bloku (600, 900 a 1200 px)."""
+    files = ", ".join(f"/assets/foto/{name}-{w}.webp {w}w" for w in (600, 900, 1200))
+    return (f'<img class="photo-wide" src="/assets/foto/{name}-1200.webp" srcset="{files}" '
+            'sizes="(max-width: 960px) calc(100vw - 40px), 564px" width="1200" height="900" '
+            f'alt="{alt}" loading="lazy" decoding="async">')
+
+
+ADDRESS ='<address class="addr">Cafe Moya<br>Sušilovo náměstí 61/39<br>683 01 Rousínov</address>'
 HOURS_ROWS = [("Pondělí–pátek", "8:00–19:00"), ("Sobota a neděle", "9:00–19:00"),
               ("Polední menu", "Po–Pá 11:00–14:00")]
 
@@ -271,8 +284,157 @@ def faq_html(items):
     out = []
     for i, (q, a) in enumerate(items):
         opened = " open" if i == 0 else ""
-        out.append(f"<details{opened}><summary>{q}{PLUS}</summary><p>{tel_links(a)}</p></details>")
+        out.append(f"<details{opened}><summary>{q}{PLUS}</summary><p>{tel_links(links_html(a))}</p></details>")
     return '<div class="faq">' + "".join(out) + "</div>"
+
+
+def faq_section(sid, items, title="Časté dotazy"):
+    return (f'<section class="sec sec--paper sec--tight" aria-labelledby="{sid}">\n<div class="wrap">\n'
+            f'<h2 id="{sid}">{title}</h2>\n{faq_html(items)}\n</div>\n</section>')
+
+
+# ---------------------------------------------------------------- texty pro vyhledávače a AI
+# Jedna věta, která přesně říká, kdo jsme, co děláme a kde. Stejné údaje jsou na stránkách,
+# ve strukturovaných datech i v llms.txt, aby vyhledávače i AI asistenti dostávali všude totéž.
+BUSINESS_DESC = ("Cafe Moya je rodinná kavárna a cukrárna na Sušilově náměstí 61/39 v Rousínově "
+                 "(okres Vyškov). Pečeme dorty na objednávku a zákusky, připravujeme obložené mísy "
+                 "a catering a ve všední dny vaříme polední menu s rozvozem zdarma do Rousínova, "
+                 "Vyškova a okolních obcí.")
+
+LUNCH_PRICES = [d[3] for day in MENU["days"] for d in day["dishes"]]
+LUNCH_MIN, LUNCH_MAX = min(LUNCH_PRICES), max(LUNCH_PRICES)
+PLATTER_MIN = min(p for _, sizes in PLATTERS for w, p in sizes if w == "1 kg")
+MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
+
+
+def links_html(text):
+    """Odkazy zapsané jako [text](adresa) převede na HTML odkazy."""
+    return MD_LINK.sub(lambda m: f'<a href="{m.group(2)}">{m.group(1)}</a>', text)
+
+
+def plain(text):
+    """Text bez odkazů a pevných mezer, pro strukturovaná data a llms.txt."""
+    return MD_LINK.sub(lambda m: m.group(1), text).replace(NB, " ")
+
+
+def villages_text():
+    names = [v for v in VILLAGES if v != "Vyškov"]
+    return ", ".join(names[:-1]) + " a " + names[-1]
+
+
+def lunch_price_text():
+    if LUNCH_MIN == LUNCH_MAX:
+        return f"stojí hlavní jídla {kc(LUNCH_MIN)}"
+    return f"stojí hlavní jídla od {kc(LUNCH_MIN)} do {kc(LUNCH_MAX)}"
+
+
+def platter_sentence():
+    out = []
+    for name, sizes in PLATTERS:
+        parts = [f"{kc(p)} za {w}" for w, p in sizes]
+        out.append(f"{name} stojí " + ", ".join(parts[:-1]) + " a " + parts[-1] + ".")
+    return " ".join(out)
+
+
+# Vybavení a služby kavárny (potvrzené majitelem). Používá se ve výpisu „Dobré vědět“,
+# v častých dotazech, ve strukturovaných datech i v llms.txt.
+PAYMENT_TEXT = "Platit můžete kartou i stravenkami Edenred, Up (dříve Chèque Déjeuner) a Pluxee (dříve Sodexo)."
+PARKING_TEXT = "Parkovat můžete přímo před kavárnou na Sušilově náměstí, hodina parkování je zdarma."
+GLUTEN_TEXT = "Vaříme i bezlepková jídla a některá další jídla můžeme připravit bez lepku změnou přílohy."
+AMENITIES = [("Platba kartou", " i stravenkami Edenred, Up a Pluxee"), ("Wi-Fi", " pro hosty"),
+             ("Bezbariérový přístup", ""), ("Pejsci vítáni", ""),
+             ("Parkování přímo před kavárnou", ", hodina zdarma"),
+             ("Bezlepková jídla", " a úprava dalších jídel bez lepku změnou přílohy")]
+AMENITY_FEATURES = ["Platba kartou", "Wi-Fi", "Bezbariérový přístup", "Psi vítáni",
+                    "Parkování před kavárnou, hodina zdarma", "Venkovní zahrádka", "Bezlepková jídla"]
+
+
+def perks():
+    items = "".join(f"<li><b>{name}</b>{rest}</li>" for name, rest in AMENITIES)
+    return f'<ul class="perks">{items}</ul>'
+
+
+FAQ_HOME = [
+    ("Kde Cafe Moya najdu?",
+     "Na Sušilově náměstí 61/39 v centru Rousínova (okres Vyškov), mezi Brnem a Vyškovem. "
+     "Mapu a navigaci najdete na stránce [Kontakt](/kontakt/)."),
+    ("Kde u vás zaparkuji?",
+     "Přímo před kavárnou na Sušilově náměstí, hodina parkování je zdarma. Do kavárny vede bezbariérový přístup."),
+    ("Jakou máte otevírací dobu?",
+     "Kavárna je otevřená v pondělí až pátek od 8 do 19 hodin a v sobotu a neděli od 9 do 19 hodin. "
+     "Polední menu vydáváme ve všední dny od 11 do 14 hodin."),
+    ("Vaříte polední menu s rozvozem?",
+     f"Ano. Ve všední dny vaříme polévku a pět hlavních jídel, v aktuálním menu {lunch_price_text()} "
+     "a polévka je v ceně. Rozvoz je zdarma po Rousínově, do Vyškova a okolních obcí. "
+     "Podrobnosti najdete na stránce [Rozvoz obědů](/rozvoz-obedu/)."),
+    ("Upečete dort na objednávku?",
+     "Ano. Dorty pečeme na narozeniny, výročí, křtiny i firemní akce podle vašeho přání. Poptávku pošlete "
+     "přes stránku [Dorty a zákusky](/dorty-na-objednavku/) nebo zavolejte na 605 226 781."),
+    ("Připravujete obložené mísy?",
+     f"Ano. Kilogramová mísa stojí od {kc(PLATTER_MIN)}, vybrat si můžete salámovou, sýrovou nebo mix mísu "
+     "a kilogram obvykle stačí pro 5–6 osob. Mísy objednávejte nejméně jeden pracovní den předem. "
+     "Celý ceník je na stránce [Catering](/catering/)."),
+    ("Můžu platit kartou nebo stravenkami?",
+     "Ano. " + PAYMENT_TEXT),
+]
+
+FAQ_MENU = [
+    ("Kolik stojí polední menu?",
+     f"V aktuálním menu {lunch_price_text()}. Polévka je v ceně menu."),
+    ("Kdy polední menu vydáváte?",
+     "Ve všední dny od 11:00 do 14:00 v kavárně na Sušilově náměstí v Rousínově. O víkendu polední menu nevaříme."),
+    ("Jak si oběd objednám s rozvozem?",
+     f"Online přes [objednávkový systém]({ORDER}), na daný den do 9:00, pro Vyškov do 10:30. "
+     "Rozvoz je zdarma. Později nám prosím zavolejte na 702 360 519."),
+    ("Máte bezlepková jídla?",
+     "Ano. " + GLUTEN_TEXT + " Zeptejte se nás při objednávce."),
+    ("Kde najdu alergeny?",
+     "Čísla v závorkách u každého jídla označují alergeny. Jejich seznam najdete pod menu."),
+]
+
+FAQ_ROZVOZ = [("Kam obědy rozvážíte?",
+               f"Po Rousínově, do Vyškova a do obcí {villages_text()}. "
+               "Nevíte, jestli vozíme i k vám? Zavolejte na 605 226 781.")] + FAQ_ROZVOZ
+
+FAQ_DORTY = [
+    ("Jak si u vás objednám dort?",
+     "Vyplňte poptávku níže na této stránce nebo zavolejte na 605 226 781. Napište, kdy dort potřebujete, "
+     "pro kolik osob má být a jakou příchuť a zdobení si přejete. Ozveme se vám a potvrdíme cenu i termín."),
+    ("Na jaké příležitosti dorty pečete?",
+     "Na narozeniny, výročí, křtiny, firemní akce i další oslavy. Každý dort pečeme podle domluvy s vámi."),
+    ("Prodáváte zákusky i bez objednávky?",
+     "Ano. Ve vitríně v kavárně najdete zákusky a dezerty z naší výroby. Dáte si je u nás ke kávě, "
+     "nebo si je odnesete domů."),
+]
+
+FAQ_CATERING = [
+    ("Kolik stojí obložené mísy?", platter_sentence()),
+    ("Pro kolik lidí stačí jedna mísa?", "Kilogram mísy obvykle stačí pro 5–6 osob."),
+    ("Jak dlouho předem musím mísu objednat?",
+     "Nejméně jeden pracovní den předem, a to i na víkend. Mísy připravujeme z čerstvých surovin."),
+    ("Jak objednávka mísy probíhá?",
+     "Vyberte mísu a termín ve formuláři níže nebo zavolejte na 605 226 781. Po objednání vám zavoláme, "
+     "objednávku zkontrolujeme a doptáme se na podrobnosti."),
+    ("Připravíte i chlebíčky a pohoštění na akci?",
+     "Ano. Chlebíčky, zákusky z naší cukrárny a další pohoštění připravíme na rodinné oslavy, porady i firemní "
+     "akce. Napište nám na info@cafemoya.cz, na kdy a pro kolik hostů pohoštění potřebujete, a připravíme vám nabídku."),
+]
+
+FAQ_KAVARNA = [
+    ("Co si u vás můžu dát?",
+     "Kávu a kávové speciality, ledové kávy, domácí limonády, čaj, horkou čokoládu, víno, koktejly a čepovanou "
+     "Plzeň. K jídlu snídaně, panini, palačinky, zmrzlinové poháry a zákusky z naší cukrárny."),
+    ("Máte venkovní zahrádku?",
+     "Ano. Za hezkého počasí můžete sedět venku na zahrádce pod slunečníky."),
+    ("Můžu k vám přijít se psem?",
+     "Ano, pejsci jsou u nás vítáni."),
+    ("Je kavárna bezbariérová?",
+     "Ano, do kavárny vede bezbariérový přístup."),
+    ("Máte Wi-Fi?",
+     "Ano, pro hosty máme Wi-Fi."),
+    ("Můžu si rezervovat stůl?",
+     "Ano, přes formulář níže nebo telefonicky na 605 226 781. Rezervaci vám potvrdíme telefonicky."),
+]
 
 # ---------------------------------------------------------------- formuláře
 def field(fid, label, kind="text", required=False, attrs="", options=None):
@@ -379,7 +541,8 @@ def footer():
             f'<div><h2>Kontakt</h2><p>Sušilovo náměstí 61/39<br>683 01 Rousínov<br>'
             f'<a href="tel:{TEL}">{TEL_H}</a><br><a href="mailto:{EMAIL}">{EMAIL}</a></p></div>'
             '<div><h2>Otevírací doba</h2><p>Po–Pá 8:00–19:00<br>So–Ne 9:00–19:00</p>'
-            f'<h2>Sledujte nás</h2><ul><li><a href="{FACEBOOK}">Facebook</a></li></ul></div>'
+            f'<h2>Sledujte nás</h2><ul><li><a href="{FACEBOOK}">Facebook</a></li>'
+            f'<li><a href="{INSTAGRAM}">Instagram</a></li></ul></div>'
             f'</div><div class="footer-bottom"><p>© {TODAY.year} Cafe Moya</p>'
             '<ul><li><a href="/kontakt/#prace">Práce u nás</a></li>'
             '<li><a href="/ochrana-osobnich-udaju/">Ochrana osobních údajů</a></li></ul>'
@@ -398,7 +561,7 @@ HOME = f'''<section class="hero sec--night">
 <div class="wrap hero-in">
 <div class="hero-text">
 <h1>Kavárna a cukrárna na Sušilově náměstí v Rousínově</h1>
-<p class="lead">Zákusky a dorty z vlastní výroby, obložené mísy na oslavy a polední menu s rozvozem zdarma.</p>
+<p class="lead">Rodinná kavárna a cukrárna v centru Rousínova u Vyškova. Pečeme dorty a zákusky, připravujeme obložené mísy a ve všední dny vaříme polední menu s rozvozem zdarma.</p>
 <div class="btns"><a class="btn btn-gold" href="/dorty-na-objednavku/">Dort na objednávku</a><a class="btn btn-line" href="/obedove-menu/">Polední menu</a></div>
 <p class="hero-note">Otevřeno Po–Pá 8–19 h, So–Ne 9–19 h</p>
 </div>
@@ -411,7 +574,7 @@ HOME = f'''<section class="hero sec--night">
 <h2 id="home-poledne">Polední menu s rozvozem zdarma</h2>
 <p class="muted">Ve všední dny od 11 do 14 h vaříme polévku a pět jídel. Polévka je v ceně menu. Rozvážíme po Rousínově, do Vyškova a <a href="/rozvoz-obedu/">dalších obcí v okolí</a>.</p>
 <div class="btns"><a class="btn btn-ink" href="{ORDER}">Objednat oběd</a><a class="btn btn-line" href="/obedove-menu/">Menu na celý týden</a></div>
-<p class="small muted">Bereme stravenky Edenred, Up a Pluxee.</p>
+<p class="small muted">Platit můžete kartou i stravenkami Edenred, Up a Pluxee.</p>
 </div>
 <div class="lunch-menu" data-menu-slot>
 {today_panel()}
@@ -447,7 +610,7 @@ HOME = f'''<section class="hero sec--night">
 <div class="prose">
 <h2 id="home-catering">Obložené mísy a catering</h2>
 <p>Salámové, sýrové i kombinované mísy z čerstvých surovin, chlebíčky a pohoštění na oslavy i firemní akce. Kilogram mísy obvykle stačí pro 5–6 osob.</p>
-<p class="muted">Mísy od {kc(739)} za kilogram. Objednávejte nejméně jeden pracovní den předem.</p>
+<p class="muted">Mísy od {kc(PLATTER_MIN)} za kilogram. Objednávejte nejméně jeden pracovní den předem.</p>
 <div class="btns"><a class="btn btn-ink" href="/catering/">Nabídka mís</a></div>
 </div>
 {photo("misy", "Tři obložené mísy se salámy, sýry a zeleninou")}
@@ -463,12 +626,14 @@ HOME = f'''<section class="hero sec--night">
 <div class="btns sec-foot"><a class="btn btn-gold-line" href="/kavarna/">O kavárně</a></div>
 </div>
 </section>
+{faq_section("home-faq", FAQ_HOME)}
 <section class="sec sec--paper" aria-labelledby="home-kontakt">
 <div class="wrap contact">
 <div class="contact-info prose">
 <h2 id="home-kontakt">Přijďte k nám</h2>
 {ADDRESS}
 {hours()}
+<p class="muted">{PARKING_TEXT} Do kavárny vede bezbariérový přístup.</p>
 <p><a href="tel:{TEL}"><b>+420 {TEL_H}</b></a><br><a href="mailto:{EMAIL}"><b>{EMAIL}</b></a></p>
 <div class="btns"><a class="btn btn-ink" href="{MAPY}">Navigovat k nám</a></div>
 </div>
@@ -494,7 +659,8 @@ MENU_PAGE = page_hero(
 <section class="sec sec--paper sec--tight" aria-label="Nápoje, stravenky a objednávky">
 <div class="wrap info-row">
 <div><h3>K menu</h3><ul class="price-list">{k_menu()}</ul></div>
-<div><h3>Stravenky</h3><p class="muted">Bereme stravenky Edenred, Up (dříve Chèque Déjeuner) a Pluxee (dříve Sodexo).</p></div>
+<div><h3>Platba</h3><p class="muted">{PAYMENT_TEXT}</p></div>
+<div><h3>Bez lepku</h3><p class="muted">{GLUTEN_TEXT}</p></div>
 <div><h3>Objednávky na rozvoz</h3><p class="muted">Online na daný den do 9:00, pro Vyškov do 10:30. Později volejte na <a href="tel:{TEL2}">{TEL2_H}</a>.</p></div>
 </div>
 </section>
@@ -504,7 +670,8 @@ MENU_PAGE = page_hero(
 <p class="muted">Čísla v závorkách u jídel označují alergeny.</p>
 <ol class="allergens">{"".join(f"<li>{a}</li>" for a in ALLERGENS)}</ol>
 </div>
-</section>'''
+</section>
+{faq_section("h-faq-menu", FAQ_MENU)}'''
 
 ROZVOZ_PAGE = page_hero(
     "Rozvoz obědů", "Rozvoz obědů zdarma v Rousínově, Vyškově a okolí",
@@ -553,12 +720,13 @@ ROZVOZ_PAGE = page_hero(
 
 DORTY_PAGE = page_hero(
     "Dorty a zákusky", "Dorty na objednávku a zákusky z naší cukrárny",
-    "Zákusky a dezerty vyrábíme sami. Na objednávku upečeme dort na narozeniny, výročí i firemní oslavu.",
+    "Zákusky a dezerty vyrábíme sami v naší cukrárně v Rousínově. Na objednávku upečeme dort na narozeniny, "
+    "výročí i firemní oslavu.",
     f'<a class="btn btn-gold" href="#poptavka-dortu">Poptat dort</a><a class="btn btn-line" href="tel:{TEL}">Zavolat {TEL_H}</a>'
 ) + f'''
 <section class="sec sec--paper" aria-labelledby="h-dort">
 <div class="wrap split">
-{ph("dort na objednávku, detail zdobení")}
+{wide("dort-na-objednavku", "Dětský dort na objednávku v mořském stylu s mušlemi, korálem a narvalem")}
 <div class="prose">
 <h2 id="h-dort">Dort podle vašeho přání</h2>
 <p>Řekněte nám, pro koho dort bude, kolik hostů čekáte a jaké chutě máte rádi. Domluvíme velikost, příchuť i zdobení a termín, kdy si dort vyzvednete.</p>
@@ -573,15 +741,16 @@ DORTY_PAGE = page_hero(
 <p>Ve vitríně v kavárně najdete zákusky a dezerty z naší výroby. Dejte si je ke kávě, nebo si je odneste domů.</p>
 <p>Na oslavu vám zákusky rádi připravíme i na objednávku.</p>
 </div>
-{ph("zákusky ve vitríně")}
+{wide("zakusky-vitrina", "Domácí cheesecaky zdobené malinami, borůvkami, čokoládou a preclíky")}
 </div>
 </section>
 <section class="sec sec--paper sec--tight" aria-labelledby="h-ukazky">
 <div class="wrap">
 <h2 class="h3" id="h-ukazky">Ukázky naší práce</h2>
-<div class="gallery">{ph("narozeninový dort")}{ph("dort na firemní akci")}{ph("zákusky na tácu")}</div>
+<div class="gallery">{shot("ukazka-zakusky", "Větrník a další zákusky", "Čokoládový zákusek s pipetou, choux s čokoládovým krémem a malinou a karamelový větrník")}{shot("ukazka-pavlovy", "Pavlovy s ovocem", "Tři pavlovy se šlehačkou, jahodami a borůvkami a šálek espressa")}{shot("ukazka-panna-cotta", "Panna cotta s ovocem", "Panna cotta s červenou a žlutou ovocnou vrstvou ve třech kelímcích")}</div>
 </div>
 </section>
+{faq_section("h-faq-dorty", FAQ_DORTY)}
 <section class="sec sec--paper sec--tight" id="poptavka-dortu" aria-labelledby="h-poptavka-dortu">
 <div class="wrap form-wrap">
 <div class="form-intro prose">
@@ -595,8 +764,8 @@ DORTY_PAGE = page_hero(
 
 CATERING_PAGE = page_hero(
     "Catering", "Obložené mísy a catering na oslavy",
-    "Plánujete oslavu, posezení s přáteli nebo firemní akci? Připravíme vám obložené mísy z čerstvých surovin, "
-    "chlebíčky i další pohoštění.",
+    "Plánujete oslavu, posezení s přáteli nebo firemní akci? V Rousínově vám připravíme obložené mísy "
+    "z čerstvých surovin, chlebíčky i další pohoštění.",
     f'<a class="btn btn-gold" href="#objednavka-misy">Objednat mísu</a><a class="btn btn-line" href="tel:{TEL}">Zavolat {TEL_H}</a>'
 ) + f'''
 <section class="sec sec--paper" aria-labelledby="h-misy">
@@ -611,7 +780,7 @@ CATERING_PAGE = page_hero(
 </section>
 <section class="sec sec--paper sec--tight" aria-labelledby="h-pohosteni">
 <div class="wrap split">
-{ph("chlebíčky a pohoštění na oslavu")}
+{wide("chlebicky-pohosteni", "Pohoštění na akci: paštika s brusinkami, tatarák na topinkách a chlebíčky se salámem v krabici")}
 <div class="prose">
 <h2 id="h-pohosteni">Chlebíčky a pohoštění na akce</h2>
 <p>Chlebíčky, zákusky z naší cukrárny a další pohoštění připravíme na rodinné oslavy, porady i firemní akce.</p>
@@ -626,6 +795,7 @@ CATERING_PAGE = page_hero(
 <div class="gallery">{shot("misa-salamova", "Salámová mísa", "Salámová mísa se šunkou, salámy a klobáskami")}{shot("misa-syrova", "Sýrová mísa", "Sýrová mísa s plísňovými sýry, mozzarellou a zeleninou")}{shot("misa-mix", "Mix mísa", "Mix mísa se šunkou, salámem, sýry a mozzarellou")}</div>
 </div>
 </section>
+{faq_section("h-faq-catering", FAQ_CATERING)}
 <section class="sec sec--paper sec--tight" id="objednavka-misy" aria-labelledby="h-objednavka-misy">
 <div class="wrap form-wrap">
 <div class="form-intro prose">
@@ -638,17 +808,19 @@ CATERING_PAGE = page_hero(
 </section>'''
 
 KAVARNA_PAGE = page_hero(
-    "Kavárna", "Rodinná kavárna na Sušilově náměstí",
+    "Kavárna", "Rodinná kavárna na Sušilově náměstí v Rousínově",
     "Dobrá káva, zákusky z naší cukrárny, snídaně i sklenka vína. Otevřeno každý den, za hezkého počasí i na zahrádce.",
     '<a class="btn btn-gold" href="#rezervace">Rezervovat stůl</a><a class="btn btn-line" href="/kontakt/">Otevírací doba</a>'
 ) + f'''
 <section class="sec sec--paper" aria-labelledby="h-onas">
 <div class="wrap split">
-{ph("interiér kavárny")}
+{wide("kavarna-interier", "Interiér kavárny Cafe Moya s dřevěnými stoly, zelenými obrazy z mechu a barem")}
 <div class="prose">
 <h2 id="h-onas">Místo pro setkání</h2>
 <p>Cafe Moya je rodinná kavárna v centru Rousínova. Kávu připravujeme s péčí, dezerty vyrábíme sami a dbáme na kvalitní suroviny.</p>
 <p>Přijďte se potkat s přáteli, s rodinou nebo na pracovní schůzku. Rádi vám vyjdeme vstříc.</p>
+<h3>Dobré vědět</h3>
+{perks()}
 </div>
 </div>
 </section>
@@ -665,18 +837,19 @@ KAVARNA_PAGE = page_hero(
 <section class="sec sec--paper" aria-labelledby="h-zahradka">
 <div class="wrap split split--rev">
 <div class="prose">
-<h2 id="h-zahradka">Zahrádka na náměstí</h2>
-<p>Za hezkého počasí můžete sedět venku na naší klidné zahrádce. Hodí se na kávu, zmrzlinový pohár i sklenku vína.</p>
+<h2 id="h-zahradka">Klidná zahrádka</h2>
+<p>Za hezkého počasí můžete sedět venku na zahrádce pod slunečníky. Hodí se na kávu, zmrzlinový pohár i sklenku vína.</p>
 </div>
-{ph("zahrádka kavárny")}
+{wide("kavarna-zahradka", "Zahrádka kavárny Cafe Moya se slunečníky, stolky a květinami")}
 </div>
 </section>
 <section class="sec sec--paper sec--tight" aria-labelledby="h-kavarna-foto">
 <div class="wrap">
 <h2 class="h3" id="h-kavarna-foto">Z naší kavárny</h2>
-<div class="gallery">{ph("káva a zákusek")}{ph("zmrzlinový pohár")}{ph("snídaně")}</div>
+<div class="gallery">{shot("kavarna-kava", "Káva a zákusky", "Cappuccino, ovocný dortík a letní drink s jahodou na stolku na zahrádce", tall=True)}{shot("kavarna-napoje", "Nápoje a dezerty", "Matcha latte, ledový nápoj a dezert z pusinek s jahodami", tall=True)}{shot("kavarna-snidane", "Snídaně", "Snídaně: míchaná vajíčka na toastu, palačinky s jahodami, cappuccino a čaj", tall=True)}</div>
 </div>
 </section>
+{faq_section("h-faq-kavarna", FAQ_KAVARNA)}
 <section class="sec sec--paper sec--tight" id="rezervace" aria-labelledby="h-rezervace">
 <div class="wrap form-wrap">
 <div class="form-intro prose">
@@ -705,6 +878,8 @@ KONTAKT_PAGE = page_hero(
 <div><dt>Rozvoz obědů po 9:00</dt><dd><a href="tel:{TEL2}">{TEL2_H}</a></dd></div>
 <div><dt>E-mail</dt><dd><a href="mailto:{EMAIL}">{EMAIL}</a></dd></div>
 </dl>
+<h3>Parkování a přístup</h3>
+<p>{PARKING_TEXT} Do kavárny vede bezbariérový přístup a pejsci jsou u nás vítáni.</p>
 <div class="btns"><a class="btn btn-ink" href="{MAPY}">Navigovat přes Mapy.com</a><a class="btn btn-line" href="{GMAPS}">Google Maps</a></div>
 </div>
 {MAP}
@@ -743,19 +918,36 @@ NOTFOUND_PAGE = '''<section class="sec sec--night">
 </section>'''
 
 # ---------------------------------------------------------------- strukturovaná data
-def business_ld():
+# Na každé stránce je jeden propojený graf schema.org: web, podnik, stránka, drobečková navigace
+# a podle stránky menu nebo služba. Všechny údaje odpovídají viditelnému textu na stránce.
+BIZ_ID = SITE + "/#kavarna"
+WEB_ID = SITE + "/#web"
+CITIES = ["Rousínov"] + VILLAGES
+SERVICES = [("/rozvoz-obedu/", "Rozvoz obědů zdarma"), ("/dorty-na-objednavku/", "Dorty na objednávku a zákusky"),
+            ("/catering/", "Obložené mísy a catering")]
+
+
+def cities():
+    return [{"@type": "City", "name": c} for c in CITIES]
+
+
+def business_node():
     return {
-        "@context": "https://schema.org",
-        "@type": "CafeOrCoffeeShop",
-        "@id": SITE + "/#kavarna",
+        "@type": ["CafeOrCoffeeShop", "Bakery"],
+        "@id": BIZ_ID,
         "name": "Cafe Moya",
+        "description": BUSINESS_DESC,
         "url": SITE + "/",
-        "image": SITE + "/assets/og-image.jpg",
+        "logo": SITE + "/assets/apple-touch-icon.png",
+        "image": [SITE + "/assets/foto/kavarna-interier-1200.webp", SITE + "/assets/foto/kavarna-zahradka-1200.webp",
+                  SITE + "/assets/foto/uvod-kava-1000.webp"],
         "telephone": TEL,
         "email": EMAIL,
         "address": {"@type": "PostalAddress", "streetAddress": "Sušilovo náměstí 61/39",
-                    "addressLocality": "Rousínov", "postalCode": "683 01", "addressCountry": "CZ"},
+                    "addressLocality": "Rousínov", "postalCode": "683 01",
+                    "addressRegion": "Jihomoravský kraj", "addressCountry": "CZ"},
         "geo": {"@type": "GeoCoordinates", "latitude": 49.203344, "longitude": 16.882403},
+        "hasMap": MAPY,
         "openingHoursSpecification": [
             {"@type": "OpeningHoursSpecification",
              "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"], "opens": "08:00", "closes": "19:00"},
@@ -764,12 +956,62 @@ def business_ld():
         "servesCuisine": ["Česká kuchyně", "Káva", "Dezerty"],
         "hasMenu": SITE + "/obedove-menu/",
         "acceptsReservations": True,
-        "areaServed": ["Rousínov"] + VILLAGES,
-        "sameAs": [FACEBOOK],
+        "currenciesAccepted": "CZK",
+        "paymentAccepted": "Platební karta, stravenky Edenred, Up, Pluxee",
+        "amenityFeature": [{"@type": "LocationFeatureSpecification", "name": name, "value": True}
+                           for name in AMENITY_FEATURES],
+        "areaServed": cities(),
+        "sameAs": [FACEBOOK, INSTAGRAM, FIRMY],
+        "hasOfferCatalog": {"@type": "OfferCatalog", "name": "Nabídka Cafe Moya", "itemListElement": [
+            {"@type": "Offer", "itemOffered": {"@type": "Service", "@id": SITE + path + "#sluzba",
+                                               "name": name, "url": SITE + path}}
+            for path, name in SERVICES]},
+        "potentialAction": [
+            {"@type": "OrderAction", "name": "Objednat polední menu s rozvozem nebo osobním odběrem",
+             "target": {"@type": "EntryPoint", "urlTemplate": ORDER, "inLanguage": "cs",
+                        "actionPlatform": ["https://schema.org/DesktopWebPlatform",
+                                           "https://schema.org/MobileWebPlatform"]},
+             "deliveryMethod": ["http://purl.org/goodrelations/v1#DeliveryModeOwnFleet",
+                                "http://purl.org/goodrelations/v1#DeliveryModePickUp"]},
+            {"@type": "ReserveAction", "name": "Rezervovat stůl v kavárně",
+             "target": {"@type": "EntryPoint", "urlTemplate": SITE + "/kavarna/#rezervace", "inLanguage": "cs"},
+             "result": {"@type": "FoodEstablishmentReservation", "name": "Rezervace stolu"}}],
     }
 
 
-def menu_ld():
+def service_node(path, name, service_type, description, **extra):
+    node = {"@type": "Service", "@id": SITE + path + "#sluzba", "name": name, "serviceType": service_type,
+            "description": description, "url": SITE + path, "provider": {"@id": BIZ_ID}}
+    node.update(extra)
+    return node
+
+
+ROZVOZ_SERVICE = service_node(
+    "/rozvoz-obedu/", "Rozvoz obědů zdarma", "Rozvoz poledního menu",
+    f"Rozvoz poledního menu zdarma po Rousínově, do Vyškova a do obcí {villages_text()}. "
+    "Objednávky na daný den online do 9:00, pro Vyškov do 10:30.",
+    areaServed=cities(),
+    offers={"@type": "Offer", "price": "0", "priceCurrency": "CZK",
+            "description": "Rozvoz je zdarma, platí se jen jídlo."},
+    availableChannel={"@type": "ServiceChannel", "serviceUrl": ORDER,
+                      "servicePhone": {"@type": "ContactPoint", "telephone": TEL2}})
+
+DORTY_SERVICE = service_node(
+    "/dorty-na-objednavku/", "Dorty na objednávku a zákusky", "Cukrářská výroba",
+    "Dorty na objednávku na narozeniny, výročí, křtiny i firemní akce a zákusky z vlastní výroby. "
+    "Poptávka přes web nebo telefon.")
+
+CATERING_SERVICE = service_node(
+    "/catering/", "Obložené mísy a catering", "Catering",
+    "Obložené mísy salámové, sýrové i mix, chlebíčky a pohoštění na oslavy a firemní akce. "
+    "Objednávky nejméně 1 pracovní den předem.",
+    hasOfferCatalog={"@type": "OfferCatalog", "name": "Obložené mísy", "itemListElement": [
+        {"@type": "Offer", "name": f"{name} {w}", "price": str(price), "priceCurrency": "CZK",
+         "itemOffered": {"@type": "MenuItem", "name": f"{name} {w}"}}
+        for name, sizes in PLATTERS for w, price in sizes]})
+
+
+def menu_node():
     sections = []
     for d in MENU["days"]:
         items = [{"@type": "MenuItem", "name": d["soup"][0],
@@ -777,61 +1019,92 @@ def menu_ld():
         for name, garnish, alg, price in d["dishes"]:
             items.append({"@type": "MenuItem", "name": name,
                           "description": (garnish + ". " if garnish else "") + f"Alergeny: {alg}",
-                          "offers": {"@type": "Offer", "price": str(price), "priceCurrency": "CZK"}})
-        sections.append({"@type": "MenuSection", "name": f"{d['name']} {dm(d['date']).replace(NB, ' ')}",
+                          "offers": {"@type": "Offer", "price": str(price), "priceCurrency": "CZK",
+                                     "validFrom": d["date"], "validThrough": d["date"]}})
+        sections.append({"@type": "MenuSection",
+                         "name": f"{d['name']} {plain(dm(d['date']))} {d['date'][:4]}",
                          "hasMenuItem": items})
-    return {"@context": "https://schema.org", "@type": "Menu", "@id": SITE + "/obedove-menu/#menu",
-            "name": f"Obědové menu Cafe Moya, {MENU['week']}. týden", "inLanguage": "cs",
+    return {"@type": "Menu", "@id": SITE + "/obedove-menu/#menu",
+            "name": f"Polední menu Cafe Moya, {MENU['week']}. týden ({plain(MENU['label'])})",
+            "description": "Polední menu ve všední dny od 11 do 14 h: polévka a pět hlavních jídel, polévka je "
+                           "v ceně. " + GLUTEN_TEXT,
+            "inLanguage": "cs", "mainEntityOfPage": {"@id": SITE + "/obedove-menu/#stranka"},
             "hasMenuSection": sections}
 
 
-def faq_ld(items):
-    return {"@context": "https://schema.org", "@type": "FAQPage",
-            "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}}
-                           for q, a in items]}
+def website_node():
+    return {"@type": "WebSite", "@id": WEB_ID, "url": SITE + "/", "name": "Cafe Moya", "inLanguage": "cs",
+            "publisher": {"@id": BIZ_ID}}
 
 
-def crumbs_ld(name, path):
-    return {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+def page_node(p):
+    url = SITE + p["path"]
+    base = p.get("page_type", "WebPage")
+    node = {"@type": [base, "FAQPage"] if p.get("faq") else base, "@id": url + "#stranka", "url": url,
+            "name": p["title"], "description": p["desc"], "inLanguage": "cs",
+            "isPartOf": {"@id": WEB_ID}, "about": {"@id": BIZ_ID}}
+    if p.get("image"):
+        node["primaryImageOfPage"] = {"@type": "ImageObject", "url": SITE + p["image"]}
+    if p.get("crumb"):
+        node["breadcrumb"] = {"@id": url + "#drobecky"}
+    if p.get("faq"):
+        node["mainEntity"] = [{"@type": "Question", "name": q,
+                               "acceptedAnswer": {"@type": "Answer", "text": plain(a)}} for q, a in p["faq"]]
+    return node
+
+
+def crumbs_node(p):
+    url = SITE + p["path"]
+    return {"@type": "BreadcrumbList", "@id": url + "#drobecky", "itemListElement": [
         {"@type": "ListItem", "position": 1, "name": "Úvod", "item": SITE + "/"},
-        {"@type": "ListItem", "position": 2, "name": name, "item": SITE + path}]}
+        {"@type": "ListItem", "position": 2, "name": p["crumb"], "item": url}]}
+
+
+def graph(p):
+    nodes = [website_node(), business_node(), page_node(p)]
+    if p.get("crumb"):
+        nodes.append(crumbs_node(p))
+    nodes += p.get("nodes", [])
+    return {"@context": "https://schema.org", "@graph": nodes}
 
 # ---------------------------------------------------------------- seznam stránek
 PAGES = [
     dict(path="/", title="Cafe Moya Rousínov – kavárna, cukrárna a obědy s rozvozem",
-         desc="Rodinná kavárna a cukrárna na Sušilově náměstí v Rousínově. Dorty a zákusky z vlastní výroby, "
-              "obložené mísy na oslavy a polední menu s rozvozem zdarma.",
-         body=HOME, ld=[business_ld()]),
+         desc="Rodinná kavárna a cukrárna na Sušilově náměstí v Rousínově u Vyškova. Dorty na objednávku, "
+              "zákusky, obložené mísy a polední menu s rozvozem zdarma.",
+         body=HOME, faq=FAQ_HOME, image="/assets/foto/uvod-kava-1000.webp"),
     dict(path="/obedove-menu/", title="Obědové menu Rousínov – denní menu na celý týden | Cafe Moya",
-         desc="Polední menu Cafe Moya v Rousínově: polévka a pět jídel od 155 Kč, výdej Po–Pá 11–14 h. "
-              "Rozvoz zdarma do Rousínova, Vyškova a okolních obcí.",
-         body=MENU_PAGE, ld=[menu_ld(), crumbs_ld("Polední menu", "/obedove-menu/")]),
+         desc=plain(f"Polední menu Cafe Moya v Rousínově: polévka a pět jídel od {kc(LUNCH_MIN)}, výdej Po–Pá "
+                    "11–14 h. Rozvoz zdarma do Rousínova, Vyškova a okolních obcí."),
+         body=MENU_PAGE, crumb="Polední menu", faq=FAQ_MENU, nodes=[menu_node()]),
     dict(path="/rozvoz-obedu/", title="Rozvoz obědů zdarma – Rousínov, Vyškov a okolí | Cafe Moya",
          desc="Rozvážíme polední menu zdarma po Rousínově, do Vyškova, Pozořic, Holubic a dalších obcí. "
               "Objednávky online do 9:00, pro Vyškov do 10:30.",
-         body=ROZVOZ_PAGE, ld=[faq_ld(FAQ_ROZVOZ), crumbs_ld("Rozvoz obědů", "/rozvoz-obedu/")]),
-    dict(path="/dorty-na-objednavku/", title="Dorty na objednávku a zákusky v Rousínově | Cafe Moya",
-         desc="Zákusky a dorty z vlastní výroby. Na objednávku upečeme dort na narozeniny, výročí nebo firemní "
-              "oslavu. Cukrárna Cafe Moya na Sušilově náměstí v Rousínově.",
-         body=DORTY_PAGE, ld=[crumbs_ld("Dorty a zákusky", "/dorty-na-objednavku/")]),
-    dict(path="/catering/", title="Obložené mísy a catering – Rousínov, Vyškov | Cafe Moya",
-         desc="Obložené mísy salámové, sýrové i mix od 739 Kč za kilogram, chlebíčky a pohoštění na oslavy "
-              "i firemní akce. Objednávky nejméně 1 pracovní den předem.",
-         body=CATERING_PAGE, ld=[crumbs_ld("Catering", "/catering/")]),
+         body=ROZVOZ_PAGE, crumb="Rozvoz obědů", faq=FAQ_ROZVOZ, nodes=[ROZVOZ_SERVICE]),
+    dict(path="/dorty-na-objednavku/", title="Dorty na objednávku Rousínov u Vyškova – cukrárna Cafe Moya",
+         desc="Dorty na objednávku na narozeniny, výročí, křtiny i firemní akce a zákusky z vlastní výroby. "
+              "Cukrárna Cafe Moya na Sušilově náměstí v Rousínově.",
+         body=DORTY_PAGE, crumb="Dorty a zákusky", faq=FAQ_DORTY, nodes=[DORTY_SERVICE],
+         image="/assets/foto/dort-na-objednavku-1200.webp"),
+    dict(path="/catering/", title="Obložené mísy a catering – Rousínov u Vyškova | Cafe Moya",
+         desc=plain(f"Obložené mísy salámové, sýrové i mix od {kc(PLATTER_MIN)} za kilogram, chlebíčky a pohoštění "
+                    "na oslavy i firemní akce. Objednávky nejméně 1 pracovní den předem."),
+         body=CATERING_PAGE, crumb="Catering", faq=FAQ_CATERING, nodes=[CATERING_SERVICE],
+         image="/assets/foto/chlebicky-pohosteni-1200.webp"),
     dict(path="/kavarna/", title="Kavárna Rousínov – káva, zákusky a snídaně | Cafe Moya",
-         desc="Rodinná kavárna na Sušilově náměstí v Rousínově. Káva, domácí zákusky, snídaně, panini, "
-              "zmrzlinové poháry, víno a koktejly. Otevřeno denně, v létě zahrádka.",
-         body=KAVARNA_PAGE, ld=[crumbs_ld("Kavárna", "/kavarna/")]),
+         desc="Rodinná kavárna na Sušilově náměstí v Rousínově. Káva, domácí zákusky, snídaně, víno a koktejly. "
+              "Zahrádka, Wi-Fi, pejsci vítáni, parkování před kavárnou.",
+         body=KAVARNA_PAGE, crumb="Kavárna", faq=FAQ_KAVARNA, image="/assets/foto/kavarna-interier-1200.webp"),
     dict(path="/kontakt/", title="Kontakt a otevírací doba – Cafe Moya Rousínov",
-         desc="Cafe Moya, Sušilovo náměstí 61/39, 683 01 Rousínov. Otevřeno Po–Pá 8–19 h, So–Ne 9–19 h. "
-              "Telefon 605 226 781, e-mail info@cafemoya.cz.",
-         body=KONTAKT_PAGE, ld=[business_ld(), crumbs_ld("Kontakt", "/kontakt/")]),
+         desc="Cafe Moya, Sušilovo náměstí 61/39, Rousínov. Otevřeno Po–Pá 8–19 h, So–Ne 9–19 h. "
+              "Parkování přímo před kavárnou, hodina zdarma. Telefon 605 226 781.",
+         body=KONTAKT_PAGE, crumb="Kontakt", page_type="ContactPage"),
     dict(path="/ochrana-osobnich-udaju/", title="Ochrana osobních údajů | Cafe Moya",
          desc="Jak Cafe Moya nakládá s osobními údaji, které nám pošlete přes formuláře na webu.",
-         body=PRIVACY_PAGE, ld=[crumbs_ld("Ochrana osobních údajů", "/ochrana-osobnich-udaju/")], sitemap=False),
+         body=PRIVACY_PAGE, crumb="Ochrana osobních údajů", sitemap=False),
 ]
 NOT_FOUND = dict(path="/404.html", title="Stránka nenalezena | Cafe Moya",
-                 desc="Tuto stránku jsme nenašli.", body=NOTFOUND_PAGE, ld=[], noindex=True)
+                 desc="Tuto stránku jsme nenašli.", body=NOTFOUND_PAGE, noindex=True)
 
 # ---------------------------------------------------------------- sestavení dokumentů
 FONT_FACES = """/* Písma Comfortaa a Nunito Sans (SIL Open Font License), uložená přímo na webu */
@@ -853,7 +1126,8 @@ def ld_scripts(objs):
 
 def document(p, ver):
     url = SITE + p["path"]
-    meta_index = '<meta name="robots" content="noindex">' if p.get("noindex") else f'<link rel="canonical" href="{url}">'
+    meta_index = ('<meta name="robots" content="noindex">' if p.get("noindex") else
+                  f'<link rel="canonical" href="{url}">\n<meta name="robots" content="max-image-preview:large">')
     return f'''<!doctype html>
 <html lang="cs" class="no-js">
 <head>
@@ -880,7 +1154,7 @@ def document(p, ver):
 <link rel="preload" href="/assets/fonts/nunito-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/assets/styles.css?v={ver}">
 <script>document.documentElement.className = "js";</script>
-{ld_scripts(p.get("ld", []))}
+{"" if p.get("noindex") else ld_scripts([graph(p)])}
 </head>
 <body>
 {vlnka(header(p["path"]))}
@@ -1019,6 +1293,45 @@ def sitemap():
 
 ROBOTS = f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n"
 
+
+def llms_txt():
+    """Souhrn webu v Markdownu podle návrhu llmstxt.org pro AI asistenty a agenty."""
+    pages = [("/obedove-menu/", "Polední menu", "menu na celý týden s cenami a alergeny"),
+             ("/rozvoz-obedu/", "Rozvoz obědů", "rozvoz zdarma, obce, časy rozvozu a uzávěrky objednávek"),
+             ("/dorty-na-objednavku/", "Dorty a zákusky", "dorty na objednávku, zákusky z vitríny a poptávkový formulář"),
+             ("/catering/", "Catering a obložené mísy", "ceník mís, pohoštění na akce a objednávkový formulář"),
+             ("/kavarna/", "Kavárna", "nabídka kavárny, zahrádka a rezervace stolu"),
+             ("/kontakt/", "Kontakt", "adresa, otevírací doba, telefony a mapa")]
+    platters = "; ".join(f"{name} " + ", ".join(f"{w} {plain(kc(p))}" for w, p in sizes) for name, sizes in PLATTERS)
+    lines = [
+        "# Cafe Moya", "",
+        f"> {BUSINESS_DESC}", "",
+        f"Údaje platí k {TODAY.day}. {TODAY.month}. {TODAY.year}. Aktuální stav je vždy na stránkách níže.", "",
+        "- Adresa: Sušilovo náměstí 61/39, 683 01 Rousínov (okres Vyškov, Jihomoravský kraj)",
+        "- Otevírací doba kavárny: pondělí až pátek 8:00–19:00, sobota a neděle 9:00–19:00",
+        f"- Polední menu: pondělí až pátek 11:00–14:00, polévka a pět hlavních jídel, polévka je v ceně; "
+        f"v aktuálním menu {plain(lunch_price_text())}",
+        f"- Rozvoz obědů: zdarma po Rousínově, do Vyškova a do obcí {villages_text()}; objednávky na daný den "
+        f"online do 9:00, pro Vyškov do 10:30, později telefonicky na +420 {TEL2_H}",
+        f"- Online objednávka obědů: {ORDER}",
+        f"- Obložené mísy: {platters}; kilogram obvykle stačí pro 5–6 osob; objednávky nejméně 1 pracovní den předem",
+        "- Dorty na objednávku: na narozeniny, výročí, křtiny i firemní akce; poptávka přes web nebo telefon",
+        "- Platba: kartou i stravenkami Edenred, Up, Pluxee",
+        "- Parkování: přímo před kavárnou na Sušilově náměstí, hodina parkování zdarma",
+        "- Vybavení: bezbariérový přístup, Wi-Fi pro hosty, pejsci vítáni, venkovní zahrádka",
+        f"- Bezlepková jídla: {GLUTEN_TEXT[0].lower() + GLUTEN_TEXT[1:]}",
+        f"- Rezervace stolu: formulář na {SITE}/kavarna/#rezervace nebo telefon",
+        f"- Telefon: +420 {TEL_H} (kavárna, dorty, catering), +420 {TEL2_H} (rozvoz obědů po 9:00)",
+        f"- E-mail: {EMAIL}", "",
+        "## Stránky", ""]
+    lines += [f"- [{title}]({SITE}{path}): {desc}" for path, title, desc in pages]
+    lines += ["", "## Optional", "",
+              f"- [Ochrana osobních údajů]({SITE}/ochrana-osobnich-udaju/): jak zpracováváme údaje z formulářů",
+              f"- [Facebook]({FACEBOOK}): novinky z kavárny",
+              f"- [Instagram]({INSTAGRAM}): fotky z kavárny a cukrárny",
+              f"- [Firmy.cz]({FIRMY}): profil kavárny", ""]
+    return "\n".join(lines)
+
 def out_path(path):
     if path == "/":
         return DIST / "index.html"
@@ -1044,6 +1357,7 @@ def build(preview=False):
 
     (DIST / "sitemap.xml").write_text(sitemap(), encoding="utf-8")
     (DIST / "robots.txt").write_text(ROBOTS, encoding="utf-8")
+    (DIST / "llms.txt").write_text(llms_txt(), encoding="utf-8")
     (DIST / ".htaccess").write_text(htaccess(), encoding="utf-8")
     (DIST / "_redirects").write_text(redirects(), encoding="utf-8")
     (DIST / ".assetsignore").write_text(".htaccess\n", encoding="utf-8")   # Cloudflare ho nepotřebuje
