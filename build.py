@@ -6,7 +6,7 @@ Cafe Moya – generátor webu (směr B: černá a zlatá)
 Použití:   python3 build.py            sestaví web do složky dist/ (to dělá i Cloudflare)
            python3 build.py --nahled   navíc vytvoří preview.html (celý web v jednom souboru)
 
-Polední menu se mění v proměnné MENU níže (později ji může plnit týdenní xlsx).
+Polední menu se načítá z týdenní tabulky xlsx – stačí ji nahrát na GitHub do hlavní složky.
 """
 import datetime
 import hashlib
@@ -15,7 +15,11 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import unicodedata
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from urllib.parse import quote
 
@@ -46,31 +50,236 @@ NB = "\u00a0"
 VILLAGES = ["Holubice", "Pozořice", "Viničné Šumice", "Vítovice", "Královopolské Vážany",
             "Olšany", "Habrovany", "Nemojany", "Luleč", "Drnovice", "Vyškov"]
 
-# Polední menu: jídla jsou (název, příloha / popis, alergeny, cena)
-MENU = {
-    "week": 42,
-    "label": "12.–16. října 2026",
-    "days": [
-        {"date": "2026-10-12", "name": "Pondělí", "soup": ("Kulajda s houbami", "1, 3, 7"),
-         "dishes": [("Špagety caprese", "rajčata, mozzarella, bazalka", "1, 7", 155),
-                    ("Kuřecí plátek se slaninou", "zapečený hermelínem, šťouchané brambory", "7", 159),
-                    ("Tomatové risotto", "kuřecí supreme, Gran Biraghi", "7, 12", 199),
-                    ("Zeleninový salát", "kuřecí nudličky, medovo-hořčičný dresink, pečivo", "1, 3, 7, 10", 189),
-                    ("Sýrová dvojka", "gouda a hermelín, hranolky, tatarská omáčka", "1, 3, 7", 165)],
-         "complete": True},
-        {"date": "2026-10-13", "name": "Úterý", "soup": ("Krupicová s vejcem", "1, 3, 9"),
-         "dishes": [("Brněnský řízek", "bramborová kaše", "1, 3, 7", 155)], "complete": False},
-        {"date": "2026-10-14", "name": "Středa", "soup": ("Boršč", "1, 7, 9"),
-         "dishes": [("Vepřové kostky na paprice", "těstoviny", "1, 7", 155)], "complete": False},
-        {"date": "2026-10-15", "name": "Čtvrtek", "soup": ("Drůbeží vývar s nudlemi a zeleninou", "1, 3, 9"),
-         "dishes": [("Pečená sekaná", "vařené brambory, kompot", "1, 3, 7", 155)], "complete": False},
-        {"date": "2026-10-16", "name": "Pátek", "soup": ("Gulášovka s chlebem", "1"),
-         "dishes": [("Přírodní rybí filé pečené v troubě", "vařené brambory, citronová omáčka", "4, 7, 10", 155)],
-         "complete": False},
-    ],
-}
+# ---------------------------------------------------------------- polední menu z tabulky xlsx
+# Týdenní jídelní lístek stačí nahrát na GitHub (nejlépe do hlavní složky, ale najde se kdekoli).
+# Čte se stejná tabulka, ze které vznikají příspěvky na Facebook: sloupec B = den, C = pořadí
+# jídla, D = název, E = alergeny, F = cena; v hlavičce „47. týden 16.-20.11.2026“.
+# Na webu jsou týdny, které ještě neskončily (při nahrání menu na další týden v pátek tedy oba);
+# pokud žádný takový není, zůstane poslední známý týden a web upozorní, že nové menu připravujeme.
+DAY_NAMES = ["Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek"]
 DAY_IDS = {"Pondělí": ("pondeli", "Po"), "Úterý": ("utery", "Út"), "Středa": ("streda", "St"),
            "Čtvrtek": ("ctvrtek", "Čt"), "Pátek": ("patek", "Pá")}
+MONTHS_GEN = ["ledna", "února", "března", "dubna", "května", "června", "července", "srpna", "září",
+              "října", "listopadu", "prosince"]
+LUNCH_PRICE_DEFAULT = (155, 229)    # jen pro texty, kdyby na GitHubu nebyla žádná tabulka s menu
+XLSX_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+XLSX_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+WEEK_RANGE = re.compile(r"(\d{1,2})\.\s*(?:(\d{1,2})\.\s*)?(?:(\d{4})\s*)?[-–—]\s*"
+                        r"(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})")
+CLOSED_WORDS = ("nevar", "zavren", "svatek", "dovolen", "nevydav")
+
+
+def ascii_key(text):
+    """Text bez diakritiky malými písmeny: „Středa:“ → „streda:“."""
+    return unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().lower()
+
+
+def xlsx_rows(path):
+    """První list sešitu jako {řádek: {sloupec: hodnota}} – jen se standardní knihovnou Pythonu."""
+    with zipfile.ZipFile(path) as z:
+        names = set(z.namelist())
+        shared = []
+        if "xl/sharedStrings.xml" in names:
+            for si in ET.fromstring(z.read("xl/sharedStrings.xml")).iter(XLSX_NS + "si"):
+                t = si.find(XLSX_NS + "t")
+                runs = [t] if t is not None else si.findall(f"{XLSX_NS}r/{XLSX_NS}t")
+                shared.append("".join(x.text or "" for x in runs))
+        sheet = ET.fromstring(z.read("xl/workbook.xml")).find(f"{XLSX_NS}sheets/{XLSX_NS}sheet")
+        rid = sheet.get(XLSX_REL)
+        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+        target = next(r.get("Target") for r in rels if r.get("Id") == rid)
+        target = target.lstrip("/") if target.startswith("/") else "xl/" + target
+        data = ET.fromstring(z.read(target))
+    rows = {}
+    for c in data.iter(XLSX_NS + "c"):
+        m = re.fullmatch(r"([A-Z]+)(\d+)", c.get("r") or "")
+        if not m:
+            continue
+        kind, v = c.get("t"), c.find(XLSX_NS + "v")
+        if kind == "s" and v is not None:
+            value = shared[int(v.text)]
+        elif kind == "inlineStr":
+            value = "".join(x.text or "" for x in c.iter(XLSX_NS + "t"))
+        elif v is not None and v.text is not None:
+            value = v.text
+            if kind not in ("str", "b", "e"):
+                try:
+                    value = float(value)
+                except ValueError:
+                    pass
+        else:
+            continue
+        col = 0
+        for ch in m.group(1):
+            col = col * 26 + ord(ch) - 64
+        rows.setdefault(int(m.group(2)), {})[col] = value
+    return rows
+
+
+def cell_text(v):
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        v = f"{v:g}"
+    text = re.sub(r"\s+", " ", str(v)).strip()
+    return re.sub(r" - ", " – ", text)          # pomlčka mezi slovy podle české typografie
+
+
+def allergens(v):
+    """Alergeny jako „1, 3, 7“. Excel z „1,3“ někdy udělá číslo 1.3 a ze „7,10“ číslo 7.1."""
+    if isinstance(v, float):
+        whole, _, frac = f"{v:.6f}".rstrip("0").rstrip(".").partition(".")
+        if frac and int(frac) <= int(whole):
+            frac += "0"
+        return ", ".join(x for x in (whole, frac) if x)
+    return ", ".join(re.findall(r"\d+", cell_text(v)))
+
+
+def price(v):
+    if isinstance(v, float):
+        return int(round(v))
+    m = re.search(r"\d+", cell_text(v).replace(" ", ""))
+    return int(m.group()) if m else None
+
+
+def dish_number(v):
+    m = re.fullmatch(r"(\d{1,2})\s*\.?", cell_text(v))
+    return int(m.group(1)) if m else None
+
+
+def day_index(v):
+    if not isinstance(v, str):
+        return None
+    key = re.sub(r"[^a-z]", "", ascii_key(v))
+    keys = [k for k, _ in DAY_IDS.values()]
+    return keys.index(key) if key in keys else None
+
+
+def split_dish(text):
+    """„Kuřecí steak, restované špecle, omáčka“ → („Kuřecí steak“, „restované špecle, omáčka“)."""
+    depth = 0
+    for i, ch in enumerate(text):
+        depth += (ch == "(") - (ch == ")")
+        if ch == "," and depth == 0:
+            return text[:i].strip(), text[i + 1:].strip()
+    return text, ""
+
+
+def week_dates(texts, filename):
+    """Pondělí, první a poslední den a číslo týdne z hlavičky, případně z názvu souboru."""
+    numbers = [int(m.group(1)) for t in texts + [filename]
+               for m in [re.search(r"\b(\d{1,2}) ?t ?y?den\b", re.sub(r"[^a-z0-9]+", " ", ascii_key(t)))] if m]
+    for t in texts:
+        m = WEEK_RANGE.search(t)
+        if not m:
+            continue
+        d1, m1, y1, d2, m2, y2 = m.groups()
+        end = datetime.date(int(y2), int(m2), int(d2))
+        m1 = int(m1) if m1 else end.month
+        start = datetime.date(int(y1) if y1 else end.year - (m1 > end.month), m1, int(d1))
+        monday = start - datetime.timedelta(days=start.weekday())
+        if numbers and numbers[0] != monday.isocalendar()[1]:
+            print(f"VAROVÁNÍ: {filename}: v hlavičce je {numbers[0]}. týden, ale datum {start:%d. %m. %Y} "
+                  f"patří do {monday.isocalendar()[1]}. týdne. Použito datum.")
+        return monday, start, end
+    if numbers:     # bez data: číslo týdne v roce, který je nejblíž dnešku
+        options = []
+        for year in (TODAY.year - 1, TODAY.year, TODAY.year + 1):
+            try:
+                options.append(datetime.date.fromisocalendar(year, numbers[0], 1))
+            except ValueError:
+                pass
+        if options:
+            monday = min(options, key=lambda d: abs((d - TODAY).days))
+            return monday, monday, monday + datetime.timedelta(days=4)
+    raise ValueError("v tabulce chybí datum týdne (např. „47. týden 16.-20.11.2026“)")
+
+
+def week_label(start, end):
+    if (start.year, start.month) == (end.year, end.month):
+        return f"{start.day}.–{end.day}.{NB}{MONTHS_GEN[end.month - 1]} {end.year}"
+    first = f"{start.day}.{NB}{MONTHS_GEN[start.month - 1]}" + (f" {start.year}" if start.year != end.year else "")
+    return f"{first} – {end.day}.{NB}{MONTHS_GEN[end.month - 1]} {end.year}"
+
+
+def read_week(path):
+    rows = xlsx_rows(path)
+    texts = [cell_text(v) for r in sorted(rows) for v in rows[r].values() if isinstance(v, str)]
+    monday, start, end = week_dates(texts, path.name)
+    found, day, base = {}, None, 2
+    for r in sorted(rows):
+        row = rows[r]
+        day_col = next((c for c in sorted(row) if day_index(row[c]) is not None), None)
+        if day_col is not None:
+            base = day_col
+            idx = day_index(row[day_col])
+            if idx in found:
+                print(f"VAROVÁNÍ: {path.name}: den {DAY_NAMES[idx]} je v tabulce dvakrát, beru první výskyt.")
+                day = {"texts": [], "dishes": []}
+            else:
+                day = found[idx] = {"texts": [], "dishes": []}
+        elif day is None:
+            continue
+        text = cell_text(row.get(base + 2))
+        if not text:
+            continue
+        num = None if day_col is not None else dish_number(row.get(base + 1))
+        if num is None:
+            if not day["dishes"]:       # polévka nebo „nevaříme“; poznámky pod jídly se nezobrazují
+                day["texts"].append((text, allergens(row.get(base + 3))))
+        else:
+            name, garnish = split_dish(text)
+            day["dishes"].append((name, garnish, allergens(row.get(base + 3)), price(row.get(base + 4))))
+    days = []
+    for idx in sorted(found):
+        f = found[idx]
+        closed = None
+        if not f["dishes"] and f["texts"] and any(w in ascii_key(f["texts"][0][0]) for w in CLOSED_WORDS):
+            closed = f["texts"][0][0]
+        days.append({"date": (monday + datetime.timedelta(days=idx)).isoformat(), "name": DAY_NAMES[idx],
+                     "week": monday.isocalendar()[1], "closed": closed,
+                     "soup": None if closed or not f["texts"] else f["texts"][0],
+                     "dishes": f["dishes"], "complete": bool(closed or f["dishes"])})
+    if not days:
+        raise ValueError("v tabulce nejsou žádné dny (sloupec B: Pondělí, Úterý…)")
+    return {"week": monday.isocalendar()[1], "monday": monday.isoformat(),
+            "end": (monday + datetime.timedelta(days=4)).isoformat(),
+            "label": week_label(start, end), "days": days, "source": path.name}
+
+
+def git_time(path):
+    """Kdy byl soubor naposledy nahrán na GitHub (0, když to nejde zjistit)."""
+    try:
+        out = subprocess.run(["git", "log", "-1", "--format=%ct", "--", str(path)], cwd=ROOT,
+                             capture_output=True, text=True, timeout=30).stdout.strip()
+        return int(out or 0)
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return 0
+
+
+def load_weeks():
+    found = {}
+    for path in sorted(ROOT.rglob("*.xlsx")):
+        rel = path.relative_to(ROOT)
+        if rel.parts[0] in ("dist", ".git", "node_modules") or path.name.startswith("~$"):
+            continue
+        try:
+            week = read_week(path)
+        except Exception as e:      # vadný soubor nesmí shodit celý web, jen se přeskočí
+            print(f"VAROVÁNÍ: menu ze souboru {rel} se nepodařilo načíst: {e}")
+            continue
+        found.setdefault(week["monday"], []).append((path, week))
+    weeks = []
+    for monday in sorted(found):
+        files = found[monday]
+        if len(files) > 1:      # stejný týden víckrát: platí naposledy nahraný, jinak „opravený“
+            files.sort(key=lambda x: (git_time(x[0]), "oprav" in ascii_key(x[0].name), x[0].name))
+        weeks.append(files[-1][1])
+    current = [w for w in weeks if w["end"] >= TODAY.isoformat()]
+    return current or weeks[-1:]
+
+
+WEEKS = load_weeks()
 
 PLATTERS = [("Salámová mísa", [("1 kg", 739), ("1,5 kg", 1109), ("2 kg", 1478)]),
             ("Sýrová mísa", [("1 kg", 769), ("1,5 kg", 1154), ("2 kg", 1538)]),
@@ -212,56 +421,97 @@ COLS = ('<div class="cols">'
 INCOMPLETE = '<p class="menu-note">Další jídla doplníme z týdenního jídelního lístku.</p>'
 
 
+def text_html(s):
+    return html.escape(s, quote=False)
+
+
 def soup_li(soup):
     name, alg = soup
-    return (f'<li><span class="dish"><b>Polévka: {name[0].lower() + name[1:]}</b> '
-            f'<span class="alg">({alg})</span></span><span class="price price--incl">v ceně menu</span></li>')
+    alg = f' <span class="alg">({alg})</span>' if alg else ""
+    return (f'<li><span class="dish"><b>Polévka: {text_html(name[0].lower() + name[1:])}</b>{alg}</span>'
+            f'<span class="price price--incl">v ceně menu</span></li>')
 
 
 def dish_li(i, dish):
     name, garnish, alg, price = dish
-    g = f' <span class="garnish">{garnish}</span>' if garnish else ""
-    return (f'<li><span class="dish"><span class="num">{i}.</span><b>{name}</b>{g} '
-            f'<span class="alg">({alg})</span></span><span class="price">{kc(price)}</span></li>')
+    g = f' <span class="garnish">{text_html(garnish)}</span>' if garnish else ""
+    alg = f' <span class="alg">({alg})</span>' if alg else ""
+    cena = kc(price) if price else ""
+    return (f'<li><span class="dish"><span class="num">{i}.</span><b>{text_html(name)}</b>{g}{alg}</span>'
+            f'<span class="price">{cena}</span></li>')
 
 
 def day_items(day):
-    return soup_li(day["soup"]) + "".join(dish_li(i, x) for i, x in enumerate(day["dishes"], 1))
+    soup = soup_li(day["soup"]) if day["soup"] else ""
+    return soup + "".join(dish_li(i, x) for i, x in enumerate(day["dishes"], 1))
+
+
+def day_body(day):
+    if day["closed"]:
+        return f'<p class="menu-note">{text_html(day["closed"])}</p>'
+    return f'<ul class="menu-list">{day_items(day)}</ul>' + ("" if day["complete"] else INCOMPLETE)
+
+
+def cooking_days():
+    return [d for w in WEEKS for d in w["days"] if not d["closed"] and (d["soup"] or d["dishes"])]
 
 
 def today_panel():
-    days = MENU["days"]
-    first = next((d for d in days if d["complete"]), days[0])
+    """Úvodní stránka: bloky všech dnů, kdy vaříme; site.js podle českého času ukáže ten pravý."""
+    days = cooking_days()
+    ready = [d for d in days if d["complete"]] or days
+    first = next((d for d in ready if d["date"] >= UPDATED), ready[0] if ready else None)
     out = []
     for d in days:
-        attrs = f' data-day-block data-date="{d["date"]}"'
-        if d is not first:
-            attrs += " hidden"
-        note = "" if d["complete"] else INCOMPLETE
+        attrs = f' data-day-block data-date="{d["date"]}"' + ("" if d is first else " hidden")
         out.append(f'<div class="menu-day"{attrs}><div class="menu-day-head"><h3>{d["name"]} {dm(d["date"])}</h3>'
-                   f'<p data-when>Polední menu, {MENU["week"]}. týden</p></div>'
-                   f'<ul class="menu-list">{day_items(d)}</ul>{note}</div>')
-    out.append('<div class="menu-day" data-day-fallback hidden><div class="menu-day-head"><h3>Polední menu</h3></div>'
+                   f'<p data-when>Polední menu, {d["week"]}. týden</p></div>{day_body(d)}</div>')
+    hidden = " hidden" if first else ""
+    out.append(f'<div class="menu-day" data-day-fallback{hidden}><div class="menu-day-head"><h3>Polední menu</h3></div>'
                '<p class="menu-note">Menu na další dny právě připravujeme. Rádi vám ho řekneme na '
                f'<a href="tel:{TEL}">{TEL_H}</a>.</p></div>')
     return "\n".join(out)
 
 
-def week_menu():
+def week_menu(week, suffix=""):
     out = []
-    for d in MENU["days"]:
-        sid = DAY_IDS[d["name"]][0]
-        note = "" if d["complete"] else INCOMPLETE
+    for d in week["days"]:
+        sid = DAY_IDS[d["name"]][0] + suffix
         out.append(f'<section class="menu-day" id="{sid}" data-menu-date="{d["date"]}" aria-labelledby="h-{sid}">'
                    f'<div class="menu-day-head"><h3 id="h-{sid}">{d["name"]} {dm(d["date"])}</h3>'
-                   f'<span class="today-badge" hidden>Dnes</span></div>'
-                   f'<ul class="menu-list">{day_items(d)}</ul>{note}</section>')
+                   f'<span class="today-badge" hidden>Dnes</span></div>{day_body(d)}</section>')
     return '<div class="week">\n' + "\n".join(out) + '\n</div>'
 
 
-def day_links():
-    return "".join(f'<a href="#{DAY_IDS[d["name"]][0]}" aria-label="{d["name"]}">{DAY_IDS[d["name"]][1]}</a>'
-                   for d in MENU["days"])
+def day_links(week, suffix=""):
+    return "".join(f'<a href="#{DAY_IDS[d["name"]][0]}{suffix}" aria-label="{d["name"]}">{DAY_IDS[d["name"]][1]}</a>'
+                   for d in week["days"])
+
+
+def weeks_html():
+    """Stránka Polední menu: každý týden ve vlastní sekci; site.js skryje týdny, které už skončily."""
+    if not WEEKS:
+        return ('<section class="sec sec--paper" aria-label="Polední menu">\n<div class="wrap">\n'
+                '<p class="menu-note">Menu na tento týden právě připravujeme. Rádi vám ho řekneme na '
+                f'<a href="tel:{TEL}">{TEL_H}</a>.</p>\n</div>\n</section>')
+    out = []
+    for i, w in enumerate(WEEKS):
+        suffix = "" if i == 0 else f"-{w['week']}"
+        old = ""
+        if i == len(WEEKS) - 1:
+            old = ('\n<p class="menu-note" data-menu-old hidden>Menu na další týden právě připravujeme. '
+                   f'Níže je menu, které platilo do {dm(w["end"])} Rádi vám nové menu řekneme na '
+                   f'<a href="tel:{TEL}">{TEL_H}</a>.</p>')
+        out.append(f'''<section class="sec sec--paper" aria-labelledby="h-tyden{suffix}" data-week-end="{w["end"]}">
+<div class="wrap">
+<div class="week-head">
+<h2 id="h-tyden{suffix}">{w["week"]}. týden, {w["label"]}</h2>
+<nav class="day-jump" aria-label="Dny {w["week"]}. týdne">{day_links(w, suffix)}</nav>{old}
+</div>
+{week_menu(w, suffix)}
+</div>
+</section>''')
+    return "\n".join(out)
 
 
 def k_menu():
@@ -301,7 +551,7 @@ BUSINESS_DESC = ("Cafe Moya je rodinná kavárna a cukrárna na Sušilově nám�
                  "a catering a ve všední dny vaříme polední menu s rozvozem zdarma do Rousínova, "
                  "Vyškova a okolních obcí.")
 
-LUNCH_PRICES = [d[3] for day in MENU["days"] for d in day["dishes"]]
+LUNCH_PRICES = [x[3] for d in cooking_days() for x in d["dishes"] if x[3]] or LUNCH_PRICE_DEFAULT
 LUNCH_MIN, LUNCH_MAX = min(LUNCH_PRICES), max(LUNCH_PRICES)
 PLATTER_MIN = min(p for _, sizes in PLATTERS for w, p in sizes if w == "1 kg")
 MD_LINK = re.compile(r"\[([^\]]+)\]\(([^)\s]+)\)")
@@ -647,15 +897,7 @@ MENU_PAGE = page_hero(
     "Oběd vám přivezeme zdarma, nebo si ho vyzvedněte u nás.",
     f'<a class="btn btn-gold" href="{ORDER}">Objednat online</a><a class="btn btn-line" href="/rozvoz-obedu/">Jak funguje rozvoz</a>'
 ) + f'''
-<section class="sec sec--paper" aria-labelledby="h-tyden">
-<div class="wrap">
-<div class="week-head">
-<h2 id="h-tyden">{MENU["week"]}. týden, {MENU["label"]}</h2>
-<nav class="day-jump" aria-label="Dny v týdnu">{day_links()}</nav>
-</div>
-{week_menu()}
-</div>
-</section>
+{weeks_html()}
 <section class="sec sec--paper sec--tight" aria-label="Nápoje, stravenky a objednávky">
 <div class="wrap info-row">
 <div><h3>K menu</h3><ul class="price-list">{k_menu()}</ul></div>
@@ -1013,23 +1255,33 @@ CATERING_SERVICE = service_node(
 
 def menu_node():
     sections = []
-    for d in MENU["days"]:
-        items = [{"@type": "MenuItem", "name": d["soup"][0],
-                  "description": f"Polévka v ceně menu. Alergeny: {d['soup'][1]}"}]
+    for d in cooking_days():
+        items = []
+        if d["soup"]:
+            soup, alg = d["soup"]
+            items.append({"@type": "MenuItem", "name": soup,
+                          "description": "Polévka v ceně menu." + (f" Alergeny: {alg}" if alg else "")})
         for name, garnish, alg, price in d["dishes"]:
-            items.append({"@type": "MenuItem", "name": name,
-                          "description": (garnish + ". " if garnish else "") + f"Alergeny: {alg}",
-                          "offers": {"@type": "Offer", "price": str(price), "priceCurrency": "CZK",
-                                     "validFrom": d["date"], "validThrough": d["date"]}})
+            desc = ". ".join(x for x in (garnish, f"Alergeny: {alg}" if alg else "") if x)
+            item = {"@type": "MenuItem", "name": name}
+            if desc:
+                item["description"] = desc
+            if price:
+                item["offers"] = {"@type": "Offer", "price": str(price), "priceCurrency": "CZK",
+                                  "validFrom": d["date"], "validThrough": d["date"]}
+            items.append(item)
         sections.append({"@type": "MenuSection",
                          "name": f"{d['name']} {plain(dm(d['date']))} {d['date'][:4]}",
                          "hasMenuItem": items})
-    return {"@type": "Menu", "@id": SITE + "/obedove-menu/#menu",
-            "name": f"Polední menu Cafe Moya, {MENU['week']}. týden ({plain(MENU['label'])})",
+    weeks = " a ".join(f"{w['week']}. týden ({plain(w['label'])})" for w in WEEKS)
+    node = {"@type": "Menu", "@id": SITE + "/obedove-menu/#menu",
+            "name": "Polední menu Cafe Moya" + (f", {weeks}" if weeks else ""),
             "description": "Polední menu ve všední dny od 11 do 14 h: polévka a pět hlavních jídel, polévka je "
                            "v ceně. " + GLUTEN_TEXT,
-            "inLanguage": "cs", "mainEntityOfPage": {"@id": SITE + "/obedove-menu/#stranka"},
-            "hasMenuSection": sections}
+            "inLanguage": "cs", "mainEntityOfPage": {"@id": SITE + "/obedove-menu/#stranka"}}
+    if sections:
+        node["hasMenuSection"] = sections
+    return node
 
 
 def website_node():
@@ -1294,6 +1546,29 @@ def sitemap():
 ROBOTS = f"User-agent: *\nAllow: /\n\nSitemap: {SITE}/sitemap.xml\n"
 
 
+def llms_menu():
+    """Aktuální polední menu v textu, aby AI asistenti uměli odpovědět, co se kdy vaří."""
+    out = []
+    for w in WEEKS:
+        out += [f"Polední menu, {w['week']}. týden ({plain(w['label'])}); polévka je v ceně menu, "
+                "čísla v závorkách jsou alergeny:", ""]
+        for d in w["days"]:
+            head = f"- {d['name']} {plain(dm(d['date']))}: "
+            if d["closed"]:
+                out.append(head + d["closed"])
+                continue
+            parts = []
+            if d["soup"]:
+                soup, alg = d["soup"]
+                parts.append(f"polévka {soup[0].lower() + soup[1:]}" + (f" ({alg})" if alg else ""))
+            for i, (name, garnish, alg, price) in enumerate(d["dishes"], 1):
+                parts.append(f"{i}. {name}" + (f", {garnish}" if garnish else "")
+                             + (f" ({alg})" if alg else "") + (f" {plain(kc(price))}" if price else ""))
+            out.append(head + ("; ".join(parts) if parts else "menu doplníme"))
+        out.append("")
+    return out
+
+
 def llms_txt():
     """Souhrn webu v Markdownu podle návrhu llmstxt.org pro AI asistenty a agenty."""
     pages = [("/obedove-menu/", "Polední menu", "menu na celý týden s cenami a alergeny"),
@@ -1322,8 +1597,9 @@ def llms_txt():
         f"- Bezlepková jídla: {GLUTEN_TEXT[0].lower() + GLUTEN_TEXT[1:]}",
         f"- Rezervace stolu: formulář na {SITE}/kavarna/#rezervace nebo telefon",
         f"- Telefon: +420 {TEL_H} (kavárna, dorty, catering), +420 {TEL2_H} (rozvoz obědů po 9:00)",
-        f"- E-mail: {EMAIL}", "",
-        "## Stránky", ""]
+        f"- E-mail: {EMAIL}", ""]
+    lines += llms_menu()
+    lines += ["## Stránky", ""]
     lines += [f"- [{title}]({SITE}{path}): {desc}" for path, title, desc in pages]
     lines += ["", "## Optional", "",
               f"- [Ochrana osobních údajů]({SITE}/ochrana-osobnich-udaju/): jak zpracováváme údaje z formulářů",
@@ -1360,14 +1636,16 @@ def build(preview=False):
     (DIST / "llms.txt").write_text(llms_txt(), encoding="utf-8")
     (DIST / ".htaccess").write_text(htaccess(), encoding="utf-8")
     (DIST / "_redirects").write_text(redirects(), encoding="utf-8")
-    (DIST / ".assetsignore").write_text(".htaccess\n", encoding="utf-8")   # Cloudflare ho nepotřebuje
+    (DIST / ".assetsignore").write_text(".htaccess\n*.xlsx\n", encoding="utf-8")   # na web nepatří
 
     if preview:
         router = (SRC / "preview.js").read_text(encoding="utf-8")
         (ROOT / "preview.html").write_text(preview_document(css, js, router), encoding="utf-8")
 
     forms = "Web3Forms" if WEB3FORMS_KEY else "e-mail (bez klíče Web3Forms)"
+    menu = ", ".join(f"{w['week']}. týden ze souboru {w['source']}" for w in WEEKS) or "žádná tabulka s menu"
     print(f"Hotovo: {len(PAGES) + 1} stránek ve složce dist, verze {ver}, formuláře: {forms}")
+    print(f"Polední menu: {menu}")
 
 
 if __name__ == "__main__":

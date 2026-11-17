@@ -19,11 +19,24 @@ vznikají až při sestavení.
 
 ## Co kde je
 
-- `build.py` – texty všech stránek, polední menu (`MENU`), ceny mís, kontakty, titulky a popisy pro vyhledávače
+- `build.py` – texty všech stránek, ceny mís, kontakty, titulky a popisy pro vyhledávače
+- `*.xlsx` – týdenní jídelní lístky, ze kterých se skládá polední menu (viz níže)
 - `src/styles.css` – vzhled webu
 - `src/site.js` – mobilní menu, zobrazení dnešního menu, odesílání formulářů
 - `src/assets/` – písma, ikony a obrázek pro sdílení na sociálních sítích
 - `src/preview.js` – jen pro náhled celého webu v jednom souboru
+
+## Polední menu
+
+Týdenní tabulku s menu (xlsx) stačí nahrát na hlavní stránku repozitáře: Add file → Upload files.
+Web si z ní při sestavení přečte týden, dny, jídla, alergeny i ceny. Na názvu souboru nezáleží.
+
+- Tabulka má stejný tvar jako pro Facebook: v hlavičce „47. týden 16.-20.11.2026“, ve sloupci B den,
+  v C pořadí jídla, v D název, v E alergeny a v F cena. Polévka je na řádku s názvem dne.
+- Den bez vaření stačí označit textem u dne, například „Státní svátek - nevaříme“.
+- Menu na další týden můžete nahrát dopředu. Web ho ukáže, až skončí to současné.
+- Opravenou tabulku nahrajte se stejným názvem, GitHub ji přepíše. Staré tabulky mazat nemusíte.
+- Když nové menu chybí, úvodní stránka i stránka s menu napíšou, že ho připravujeme.
 
 ## Formuláře
 

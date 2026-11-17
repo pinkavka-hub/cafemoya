@@ -85,8 +85,17 @@
     window.moyaUpdateLunch = update;
   }
 
-  /* Stránka s menu: označit dnešní den */
-  var day = d.querySelector('[data-menu-date="' + pragueNow().date + '"]');
+  /* Stránka s menu: skrýt týdny, které už skončily (když je zveřejněný další), a označit dnešní den.
+     Když skončily všechny, zůstane poslední týden s poznámkou, že nové menu připravujeme. */
+  var todayIso = pragueNow().date;
+  var weekSecs = [].slice.call(d.querySelectorAll('[data-week-end]'));
+  var over = weekSecs.filter(function (s) { return s.getAttribute('data-week-end') < todayIso; });
+  var allOver = weekSecs.length > 0 && over.length === weekSecs.length;
+  over.forEach(function (s, i) { s.hidden = !(allOver && i === over.length - 1); });
+  var oldNote = d.querySelector('[data-menu-old]');
+  if (oldNote) oldNote.hidden = !allOver;
+
+  var day = d.querySelector('[data-menu-date="' + todayIso + '"]');
   if (day) {
     var badge = day.querySelector('.today-badge');
     if (badge) badge.hidden = false;
